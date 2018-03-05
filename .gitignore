@@ -1,0 +1,13 @@
+.Rproj.user
+*.Rproj
+.Rhistory
+.RData
+.Ruserdata
+KarlukSteelhead/data-raw/*.xlsx
+KarlukSteelhead/data-raw/*.xlsm
+KarlukSteelhead/data-raw/*.xls
+/FDSreports
+/Opplans
+KarlukSteelhead/NAMESPACE
+KarlukSteelhead/man
+/markdown/*.html

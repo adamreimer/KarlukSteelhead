@@ -1,0 +1,9 @@
+model{
+  R ~ dhyper(M, NM, C, 1)
+  NM <- round(N - M)
+  N ~ dunif(0, 25000)
+  C <- round(Call * p)
+  samp_f ~ dbinom(p, samp_n)
+  p ~ dbeta(1, 1)
+  phi <- C/N
+}

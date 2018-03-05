@@ -1,0 +1,121 @@
+---
+title: "2017 Karluk Steelhead preliminary estimate"
+author: "Adam Reimer"
+date: "March 1, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(KarlukSteelhead)
+library(ggplot2)
+```
+
+These tests are detailed in Appendix A of the operational plan.
+
+## Size Selective Sampling Tests
+With respect to size there is no evidence of selective sampling during either event.
+```{r echo = FALSE}
+test_ks <- function(lg1, lg2, title){
+  name1 <- deparse(substitute(lg1))
+  name2 <- deparse(substitute(lg2))
+  plot(ecdf(lg1),
+       main = title,
+       ylab = "Proportion",
+       xlab = "length")
+  plot(ecdf(lg2), add = TRUE, col = "red")
+  legend(quantile(lg1, .65, na.rm = TRUE), .40, legend = c(name1, name2), col = c("black", "red"), pch = 16)
+  test <- ks.test(as.numeric(lg1),
+                  as.numeric(lg2))
+  text(quantile(lg1, .65, na.rm = TRUE), .1,
+       labels = paste0(test$method, "\n p.val = ", format.pval(test$p.value, digits = 2, eps = 0.001, nsmall = 3)),
+       adj = 0)
+}
+```
+
+```{r}
+test_ks(dat17$C$length, dat17$R$length, "C vs. R")
+test_ks(dat17$M$length, dat17$R$length, "M vs. R")
+test_ks(dat17$M$length, dat17$C$length, "M vs. C")
+```
+
+## Sex Selective Sampling Tests
+With respect to sex both events appear to be sampling selectively.
+```{r}
+#sex selectivity
+#first event biased
+R_sex <- dat17$R[!is.na(dat17$R$sex), ]
+CR <- data.frame(event= c(rep("C", dim(dat17$C)[1]), rep("R", dim(R_sex)[1])),
+                 sex = c(dat17$C$sex, R_sex$sex))
+aslpack::tab_lr(CR, "sex", "event")
+
+#second event biased, but weir should have equal prob capture by sex so really different mortality by sex.
+M_sex <- dat17$M[!is.na(dat17$M$sex), ]
+MR <- data.frame(event = c(rep("M", dim(M_sex)[1]), rep("R", dim(R_sex )[1])),
+                 sex = c(M_sex$sex, R_sex $sex))
+aslpack::tab_lr(MR, "sex", "event")
+```
+
+Normally we would run abundance estimates that were stratified by sex but we lose that ability because we only have 1 male recapture. The test for sex selectivity in the second event confounds survival of tagged fish between the two events with probability of capture during the second event. Can we make an argument that probabilty of capture has to be the same in the second event? It is a weir which spans the run and was sampled thru time.
+
+```{r}
+ggplot(dat17$weir, aes(x = as.Date(date), weight = daily)) +
+  geom_histogram(binwidth = 1) +
+  scale_x_date(date_labels = "%m/%d", date_breaks = "weeks") +
+  labs(title = "Kelt emigration by date",x = "Date")
+
+ggplot(dat17$C, aes(x = as.Date(date))) +
+  geom_histogram(binwidth = 1) +
+  scale_x_date(date_labels = "%m/%d", date_breaks = "weeks") +
+  labs(title = "ASL samples by sex and date", x = "Date") +
+  facet_grid(sex ~ .)
+```
+
+If we can assume equal probabilty of capture during the second event then the M vr. R test results are evidence of lower survival for tagged males than tagged females. A model for this situation could be:
+$$
+\begin{align}
+R &\sim \frac{{m\choose R}{N-m\choose C - R}}{{N\choose C}}~~~\text{where}\\
+m &= M_{female} * \phi_{female} + M_{male} * \phi_{male}\\
+\end{align}
+$$
+where $R$ is the number of recaptures, $m$ is the number of marks that survived capture and handling, $N$ is abundance, $C$ is the number of fish captured in the second event and $M$ is the number of marks released during the first event. Survival for marked fish $\phi$ is different for each sex and constrained using priors.
+$$
+\begin{align}
+\Phi &= \frac{C}{N}\\
+\phi_{female} &\sim U(\frac{17}{54}, \Phi)\\
+\phi_{male} &\sim U(0, \phi_{female})
+\end{align}
+$$
+The lower bounds for each $\phi$ ensure available marks exceed the observed recaptures while the upper bounds order the survival parameters: tagged male survival is lower than tagged female survival which is lower than survival of untagged fish. I tried an alternative model where $\phi_{female} = \Phi$ but this model had better predictive accuracy (as measured by DIC). This model was programed into Jags using a non-informative prior $N$.  The input data looked like this:
+
+```{r, echo = FALSE}
+jags_dat <- list(M = table(dat17$M$sex),
+                 R = sum(!is.na(dat17$R$sex)),
+                 C = sum(dat17$weir$daily)
+)
+jags_dat
+
+#paramaters of interest
+params <- c("N", "m", "phi", "PHI")
+
+#MCMC settings
+nc <- 5; nb <- 10000; nt <- 10; ns <- 20000
+```
+
+The model was run for `r nc` chains for a total of `r as.integer(ns)` samples with a `r as.integer(nb)` burn in.  All parameters converged. The output:
+```{r}
+post <- jagsUI::jags(data = jags_dat,
+                     parameters.to.save = params,
+                     model.file = "..\\models\\mod_MRp2_17.txt",
+                     n.chains = nc,
+                     n.iter = ns,
+                     n.burnin = nb,
+                     n.thin = nt,
+                     store.data = TRUE,
+                     verbose = FALSE)
+p <- post$summary[!grepl("deviance", rownames(post$summary)), !grepl("overlap0|f", colnames(post$summary))]
+rownames(p) <- c("N", "m", "$\\phi_{female}$", "$\\phi_{male}$", "$\\Phi$")
+knitr::kable(p, 
+             digits = 2,
+             escape = FALSE)
+```

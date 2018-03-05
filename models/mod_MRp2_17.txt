@@ -1,0 +1,9 @@
+model{
+  m <- round(sum(M[] * phi[])) #marks available for recapture
+  R ~ dhyper(m, Nm, C, 1)
+  Nm <- round(N - m)
+  PHI <- C / N
+  phi[1] ~ dunif(0.31, PHI) # with <- PHI DIC=6.2
+  phi[2] ~ dunif(0, phi[1])
+  N ~ dunif(0, 25000)	 #Female abundance
+}
