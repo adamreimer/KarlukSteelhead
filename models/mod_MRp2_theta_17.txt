@@ -1,0 +1,14 @@
+model{
+  m <- round(sum(M[] * (PHI - delta[]))) #marks available for recapture
+  Nm <- round(N - m)
+  PHI <- C / N
+  for(i in 1:2){
+	R[i] ~ dbinom(phi[i], M[i])
+	phi[i] <- PHI - delta[i]
+	delta[i] ~ dbeta(1,1)
+  }
+#  phi[1] ~ dunif(17/54, PHI)
+#  phi[2] ~ dunif(1/21, phi[1])
+  Rsum ~ dhyper(m, Nm, C, 1)
+  N ~ dunif(0, 25000)
+}
