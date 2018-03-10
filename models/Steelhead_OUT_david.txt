@@ -1,0 +1,41 @@
+
+# DATA
+jags.dat1 <- list (MF 	= table(dat17$M$sex)[1],            # Marked females
+                   RF	= sum(dat17$R$sex=="F",na.rm=T),    # Female Recaps
+                   Cweir= sum(dat17$weir$daily),            # Total weir count, both sexes
+                   xF	= sum(dat17$C$sex=="F",na.rm=T),    # Females in sex sample
+                   Csex	= nrow(dat17$C),                    # Number fish examined for sex
+                   cvweir=0.01                              # Low cv for weir count
+                                )      
+
+
+
+# MODEL
+
+model{
+
+muF.weir<-MF*phiFM + UF*(phiFM+delta)    # Females at weir; delta is the increase in survival you get by not being tagged
+mu.weir<-muF.weir+muF.weir/pF-muF.weir   # All fish at weir
+
+log.mu.weir=log(mu.weir)
+tau<-1/log(cvweir*cvweir+1)
+Cweir~dlnorm(log.mu.weir,tau)
+
+pF~dbeta(1,1)                            # Binomial sex proportion
+x~dbin(pF,Csex)                          # F sex data 
+
+UF~dunif(0,15000)
+phiFM<-RF/MF                               
+delta~dunif(0,0.69)     # Given phiFM=0.31, the extra survival due to not being tagged can't be bigger than 0.69
+}
+
+
+
+
+
+# RESULTS (UF = untagged females on spawning ground)
+
+NODE	mean	      CRI_2.5	        CRI_50	        CRI_97.5
+UF	5786.148921	1075.525811	5081.792682	12546.82069
+delta	0.296035289	0.008760474	0.277899859	0.660422776
+pF	0.680729832	0.183220575	0.72913568	0.988005557
