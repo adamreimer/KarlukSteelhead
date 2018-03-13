@@ -11,10 +11,10 @@ library(KarlukSteelhead)
 library(ggplot2)
 ```
 
-These tests are detailed in Appendix A of the operational plan.
+Hi Tyler, There are 3 parts to this preliminary write up. First a whole slew of standard test results as outlined in appendix A of the operational plan. Second, some supplementary information that might help interpret the test results.  Lastly, a plausible model. Please take a look and then let’s discuss. It also occurred to me over the weekend that you may hear something at the conference that we may want to consider so I propose leaving this as a preliminary estimate till you return from the conference and then finalizing it based on your thoughts in a few weeks.
 
 ## Size Selective Sampling Tests
-With respect to size there is no evidence of selective sampling during either event.
+With respect to size there is no evidence of selective sampling during either event. These tests all point toward used of a pooled Peterson estimator.
 ```{r echo = FALSE}
 test_ks <- function(lg1, lg2, title){
   name1 <- deparse(substitute(lg1))
@@ -40,7 +40,7 @@ test_ks(dat17$M$length, dat17$C$length, "M vs. C")
 ```
 
 ## Sex Selective Sampling Tests
-With respect to sex both events appear to be sampling selectively.
+With respect to sex both events appear to be sampling selectively. Normally we would run abundance estimates that were stratified by sex but we lose that ability because we only have 1 male recapture. The test for sex selectivity in the second event (M vrs. R) can be viewed as a test of differences in the product of probability of capture in the second event with mortality of tagged fish between the events. If we have confidence that the probability of capture at the weir is equally for both sexes we could interpret the failed test as evidence of different mortality rates for each sex. I'll come back to this later.
 ```{r}
 #sex selectivity
 #first event biased
@@ -56,14 +56,40 @@ MR <- data.frame(event = c(rep("M", dim(M_sex)[1]), rep("R", dim(R_sex )[1])),
 aslpack::tab_lr(MR, "sex", "event")
 ```
 
-Normally we would run abundance estimates that were stratified by sex but we lose that ability because we only have 1 male recapture. The test for sex selectivity in the second event confounds survival of tagged fish between the two events with probability of capture during the second event. Can we make an argument that probabilty of capture has to be the same in the second event? It is a weir which spans the run and was sampled thru time.
+#Consistency tests
+Consistency tests were all passed, pointing towards the use of a Peterson estimator.
+```{r}
+mix_tab <- cbind(table(dat17$R$mark_strata, dat17$R$strata), table(dat17$M$strata) - table(dat17$R$mark_strata))
+mix_tab
+DescTools::GTest(mix_tab)
 
+eqprop_tab <- rbind(table(dat17$R$strata), table(dat17$C$strata) - table(dat17$R$strata))
+eqprop_tab
+DescTools::GTest(eqprop_tab)
+
+completemix_tab <- rbind(table(dat17$R$mark_strata), table(dat17$M$strata) - table(dat17$R$mark_strata))
+completemix_tab
+chisq.test(completemix_tab)
+```
+
+#Test interpretation
+I don't think it's obvious how to best proceed in light of the extremely low numbers of male recaptures. The path I’m suggesting (at least for now) is to assume that the weir is not sex selective, spawning survival is the same for both sexes and that both males and females experienced tagging induced mortality. I interpret our tests in light of these assumptions as saying that tagging induced mortality was higher for males than females and that we can calculate both because we know the observed survival (# of marks and recaptures for each sex) and we have good prior information about spawning survival (6 years from Begich thesis, page 40).
+
+Looking at the weir I don't see any obvious truncation early in the season. You expressed doubts about the weir as a kelt census and that thought is defiantly supported in some years.  This year does not look too bad though.
 ```{r}
 ggplot(dat17$weir, aes(x = as.Date(date), weight = daily)) +
   geom_histogram(binwidth = 1) +
   scale_x_date(date_labels = "%m/%d", date_breaks = "weeks") +
   labs(title = "Kelt emigration by date",x = "Date")
 
+weir_daily %>%
+  ggplot(aes(jday, weight = daily)) +
+    geom_histogram(binwidth = 3) +
+    facet_wrap(~year, scales = "free_y")
+```
+
+If there is any truncation it would be fish missed at the weir early. If one sex was more likely to emigrate earlier that would be a problem, but both sexes emigrated throughout the sampling window.
+```{r}
 ggplot(dat17$C, aes(x = as.Date(date))) +
   geom_histogram(binwidth = 1) +
   scale_x_date(date_labels = "%m/%d", date_breaks = "weeks") +
@@ -71,27 +97,43 @@ ggplot(dat17$C, aes(x = as.Date(date))) +
   facet_grid(sex ~ .)
 ```
 
-If we can assume equal probabilty of capture during the second event then the M vr. R test results are evidence of lower survival for tagged males than tagged females. A model for this situation could be:
+Here is a look at male and female spawning survival according to Begich. Male survival might be a touch lower, but it's not significant.  Thinking about female handing mortality we recaptured 17 females out of 54 marked females, so 31% of our tagged fish survived handling and spawning. That would be lower than any female survival recorded by Begich. In combination with the very low survival of tagged males it seems reasonable to think both sexes experienced handing mortality (rather than just the males).
+```{r}
+plot(c(.62, .55, .42, .68, .36, .66), 
+     c(.63, .49, .47, .54, .36, .64),
+     xlab = "female survival", ylab = "male survival")
+abline(a = 0, b = 1)
+```
+
+#Model
+A model for this situation could be:
 $$
 \begin{align}
 R &\sim \frac{{m\choose R}{N-m\choose C - R}}{{N\choose C}}~~~\text{where}\\
 m &= M_{female} * \phi_{female} + M_{male} * \phi_{male}\\
 \end{align}
 $$
-where $R$ is the number of recaptures, $m$ is the number of marks that survived capture and handling, $N$ is abundance, $C$ is the number of fish captured in the second event and $M$ is the number of marks released during the first event. Survival for marked fish $\phi$ is different for each sex and constrained using priors.
+where $R$ is the number of recaptures, $m$ is the number of marks that survived capture and handling, $N$ is abundance, $C$ is the number of fish captured in the second event and $M_x$ is the number of marks released during the first event of sex $x$. We can estimate survival for marked fish of each sex $\phi_x$ by writing.
 $$
 \begin{align}
-\Phi &= \frac{C}{N}\\
-\phi_{female} &\sim U(\frac{17}{54}, \Phi)\\
-\phi_{male} &\sim U(0, \phi_{female})
+R_x &\sim Binomial(\rho_x, M_x)\\
+\rho_x &= \phi_x\Phi\\
+\phi_{female} &\sim U(0, 1)\\
+\phi_{male} &\sim U(0, \phi_{female})\\
+\Phi &~\sim Beta(12, 9.3)
 \end{align}
 $$
-The lower bounds for each $\phi$ ensure available marks exceed the observed recaptures while the upper bounds order the survival parameters: tagged male survival is lower than tagged female survival which is lower than survival of untagged fish. I tried an alternative model where $\phi_{female} = \Phi$ but this model had better predictive accuracy (as measured by DIC). This model was programed into Jags using a non-informative prior $N$.  The input data looked like this:
+which says that,  $\rho_x$, the observed survival for tagged fish of sex $x$, is the product of surviving handling $\phi_x$ and surviving spawning $\Phi$. We order handing survival such that $\phi_{female} > \phi_{male}$ and use the results of the 1992-1997 studies to say the mean spawning survival was $\frac{12}{21.3} = 0.56$.
 
+The input data looked like this:
 ```{r, echo = FALSE}
+surv <- c(0.667, 0.583, 0.507, 0.623, 0.357, .657)
+fit <- fitdistrplus::fitdist(surv, "beta")
 jags_dat <- list(M = table(dat17$M$sex),
-                 R = sum(!is.na(dat17$R$sex)),
-                 C = sum(dat17$weir$daily)
+                 R = table(dat17$R$sex),
+                 Rsum = dim(dat17$R)[1], #sum(!is.na(dat17$R$sex)),
+                 C = sum(dat17$weir$daily),
+                 beta_param = fit$estimate
 )
 jags_dat
 
@@ -99,21 +141,23 @@ jags_dat
 params <- c("N", "m", "phi", "PHI")
 
 #MCMC settings
-nc <- 5; nb <- 10000; nt <- 10; ns <- 20000
-```
+nc <- 4; nb <- 10000; nt <- 10; ns <- 30000
 
-The model was run for `r nc` chains for a total of `r as.integer(ns)` samples with a `r as.integer(nb)` burn in.  All parameters converged. The output:
-```{r}
 post <- jagsUI::jags(data = jags_dat,
                      parameters.to.save = params,
-                     model.file = "..\\models\\mod_MRp2_17.txt",
+                     model.file = "..\\models\\mod_MRp2_theta_17.txt",
                      n.chains = nc,
                      n.iter = ns,
                      n.burnin = nb,
                      n.thin = nt,
-                     store.data = TRUE,
-                     verbose = FALSE)
+                     store.data = TRUE)
 p <- post$summary[!grepl("deviance", rownames(post$summary)), !grepl("overlap0|f", colnames(post$summary))]
+mean <- KarlukSteelhead:::digits(p[, "mean"])
+sd <- KarlukSteelhead:::digits(p[, "sd"])
+```
+
+The model was run for `r nc` chains for a total of `r as.integer(ns)` samples with a `r as.integer(nb)` burn in.  All parameters converged. Our abundance estimate would be `r paste0(mean["N"], " (SE=", sd["N"], ")")` where `r paste0(mean["phi[1]"], " (SE=", sd["phi[1]"], ")")` of females and `r paste0(mean["phi[2]"], " (SE= ", sd["phi[2]"], ")")` of the males survived handing.
+```{r}
 rownames(p) <- c("N", "m", "$\\phi_{female}$", "$\\phi_{male}$", "$\\Phi$")
 knitr::kable(p, 
              digits = 2,

@@ -1,13 +1,13 @@
 model{
   m <- round(sum(M[] * phi[])) #marks available for recapture
   Nm <- round(N - m)
-  PHI <- C / N
+#  PHI <- C / N
+  PHI ~ dbeta(beta_param[1], beta_param[2])	   #spawning survival, from 1992-1997 Karluk Steelhead
   for(i in 1:2){
-	R[i] ~ dbinom(phi0[i], M[i])
-	phi0[i] <- PHI * phi[i]
-#	phi[i] ~ dbeta(1,1)
+	R[i] ~ dbinom(rho[i], M[i])			   #Observe survival of tagged fish
+	rho[i] <- PHI * phi[i]				       #Product of tagging survival and spawning survival
   }
-  phi[1] ~ dunif(0, 1)
+  phi[1] ~ dunif(0, 1)						   #Male tagging survival < female tagging survival
   phi[2] ~ dunif(0, phi[1])
   Rsum ~ dhyper(m, Nm, C, 1)
   N ~ dunif(0, 25000)
