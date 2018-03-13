@@ -12,14 +12,14 @@ weir_daily <-
 library(ggplot2)
 weir_daily %>%
   ggplot(aes(jday, weight = daily)) +
-    geom_histogram(binwidth = 7) +
+    geom_histogram(binwidth = 3) +
     facet_wrap(~year, scales = "free_y")
 
 weir_daily %>%
   dplyr::filter((year >= 1991 & year <= 1996) | year >= 2011) %>%
   ggplot(aes(jday, weight = daily)) +
-    geom_histogram(binwidth = 7) +
-    facet_wrap(~year, nrow = 2, scales = "free_y")
+    geom_histogram(binwidth = 3) +
+    facet_wrap(~year, ncol = 2, scales = "free_y")
 
 weir_annual <-
   weir_daily %>%
