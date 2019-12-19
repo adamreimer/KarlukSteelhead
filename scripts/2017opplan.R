@@ -1,9 +1,9 @@
 weir_daily <-
-  readxl::read_excel(".\\KarlukSteelhead\\data_raw\\Karluk Steelhead Counts 1976-2016.xlsx") %>%
-  dplyr::rename_(date = as.name('Month-Day')) %>%
+  readxl::read_excel(".\\data\\data_raw\\Karluk Steelhead Counts 1976-2016.xlsx") %>%
+  dplyr::rename(date = 'Month-Day') %>%
   tidyr::gather(year, cum, -date) %>%
   dplyr::group_by(year) %>%
-  dplyr::mutate(daily = ifelse(is.na(lag(cum)), 0, cum - lag(cum)),
+  dplyr::mutate(daily = ifelse(is.na(dplyr::lag(cum)), 0, cum - dplyr::lag(cum)),
                 date = as.Date(paste0(format(date, "%m"), "-", format(date, "%d"), "-", year), "%m-%d-%Y"),
                 jday = as.numeric(format(date, "%j")),
                 week = format(date, "%U")) %>%
@@ -11,8 +11,8 @@ weir_daily <-
 
 library(ggplot2)
 weir_daily %>%
-  ggplot(aes(jday, weight = daily)) +
-    geom_histogram(binwidth = 3) +
+  ggplot(aes(x = jday, y = daily)) +
+    geom_col() +
     facet_wrap(~year, scales = "free_y")
 
 weir_daily %>%
@@ -66,3 +66,4 @@ n
 
 #sampling rate
 1253/3/n
+

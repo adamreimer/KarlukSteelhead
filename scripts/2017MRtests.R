@@ -1,4 +1,4 @@
-library(KarlukSteelhead)
+load(".\\data\\dat17.rda")
 
 test_ks <- function(lg1, lg2, title){
   name1 <- deparse(substitute(lg1))
@@ -82,3 +82,4 @@ ggplot(dat17$weir, aes(x = as.Date(date), weight = daily)) +
   geom_histogram(binwidth = 1) +
   scale_x_date(date_labels = "%m/%d", date_breaks = "weeks") +
   labs(x = "Date")
+

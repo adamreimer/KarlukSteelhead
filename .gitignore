@@ -3,11 +3,9 @@
 .Rhistory
 .RData
 .Ruserdata
-KarlukSteelhead/data-raw/*.xlsx
-KarlukSteelhead/data-raw/*.xlsm
-KarlukSteelhead/data-raw/*.xls
+data/data_raw/*.xlsx
+data/data_raw/*.xlsm
+data/data_raw/*.xls
 /FDSreports
 /Opplans
-KarlukSteelhead/NAMESPACE
-KarlukSteelhead/man
 /markdown/*.html

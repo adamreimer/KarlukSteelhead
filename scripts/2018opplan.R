@@ -1,5 +1,6 @@
 library(ggplot2)
-library(KarlukSteelhead)
+library(magrittr)
+load(".\\data\\weir_daily.rda")
 weir_daily %>%
   ggplot(aes(jday, weight = daily)) +
     geom_histogram(binwidth = 3) +
@@ -69,3 +70,4 @@ n_M
 n_C <- sapply(n0, FUN=function(n) {n/c(.55)})
 n_C
 2011/3/n_C
+
