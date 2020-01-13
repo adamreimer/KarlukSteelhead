@@ -1,0 +1,5 @@
+model{
+    R ~ dhyper(M, NM, C, 1)
+    NM <- round(N - M)
+    N ~ dunif(0, 25000)
+}

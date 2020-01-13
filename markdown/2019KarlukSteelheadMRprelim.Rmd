@@ -1,0 +1,348 @@
+---
+title: "2019 Karluk Steelhead preliminary estimate"
+author: "Adam Reimer"
+date: "December 23, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(magrittr)
+library(ggplot2)
+library(aslpack)
+load("..\\data\\dat19.rda")
+```
+
+Hi Tyler, The 2019 analysis is fairly straightforward but it does change how we interpret the 2017 preliminary write up we worked on previously. In short, some of the assumptions I felt were OK back then I'm not comfortable with now. Please take a look and then let’s discuss.
+  
+# Abundance estimate  
+  
+## Size Selective Sampling Tests  
+With respect to size there is no evidence of selective sampling during either event. None of these plots look great to me but the test statistic is insignificant for all three tests. These tests all point toward used of a pooled Peterson estimator.
+```{r echo = FALSE}
+test_ks <- function(lg1, lg2, title){
+  name1 <- deparse(substitute(lg1))
+  name2 <- deparse(substitute(lg2))
+  plot(ecdf(lg1),
+       main = title,
+       ylab = "Proportion",
+       xlab = "length")
+  plot(ecdf(lg2), add = TRUE, col = "red")
+  legend(quantile(lg1, .65, na.rm = TRUE), .40, legend = c(name1, name2), col = c("black", "red"), pch = 16)
+  test <- ks.test(as.numeric(lg1),
+                  as.numeric(lg2))
+  text(quantile(lg1, .65, na.rm = TRUE), .1,
+       labels = paste0(test$method, "\n p.val = ", format.pval(test$p.value, digits = 2, eps = 0.001, nsmall = 3)),
+       adj = 0)
+}
+```
+
+```{r}
+#no size selectivity
+R_lg <- dat19$R$length[!is.na(dat19$R$length)]
+C_lg <- dat19$C$length[!is.na(dat19$C$length)]
+M_lg <- dat19$M$length[!is.na(dat19$M$length)]
+test_ks(C_lg, R_lg, "C vs. R")
+test_ks(M_lg, R_lg, "M vs. R")
+test_ks(M_lg, C_lg, "M vs. C")
+```
+  
+## Sex Selective Sampling Tests
+With respect to sex selective sampling we fall into case V (inconsistent test results). The issue is that both sex selectivity tests point to non-selective sampling but the sex composition of the two events differs. Two interpretations are possible. First, we could assume the sex comp at the weir is the better estimate and the event specific tests likely have low power due to a small sample sizes. Under this interpretation the mark-recapture can still be pooled but we would have to be careful about using the age/sex composition stuff from the marking event because we believe that sampling may have been selective. The other interpretation is that both events had non-selective sampling but that survival differed between events. This seems to be the common assumption in the earlier reports. I'm comfortable with the second assumption if you are.
+```{r}
+#sex selectivity
+#first event unbiased
+R_sex <- as.character(dat19$R$sex[!is.na(dat19$R$sex)])
+C_sex <- as.character(dat19$C$sex[!is.na(dat19$C$sex)])
+M_sex <- as.character(dat19$M$sex[!is.na(dat19$M$sex)])
+CR <- data.frame(strata= c(rep("C", length(C_sex)), rep("R", length(R_sex))),
+                 sex = c(C_sex, R_sex))
+aslpack::tab_lr(CR, "sex")
+
+#second event unbiased
+MR <- data.frame(strata= c(rep("M", length(M_sex)), rep("R", length(R_sex ))),
+                 sex = c(M_sex, R_sex))
+aslpack::tab_lr(MR, "sex")
+
+MC <- data.frame(strata= c(rep("M", length(M_sex)), rep("C", length(C_sex ))),
+                 sex = c(M_sex, C_sex))
+aslpack::tab_lr(MC, "sex", )
+```
+  
+## Consistency tests
+Consistency tests involve whether temporal stratification is required. All tests were all passed, pointing towards the use of a Peterson estimator.
+```{r}
+#Consistancy tests passed
+mix_tab <- cbind(table(dat19$R$mark_strata, dat19$R$strata), table(dat19$M$strata) - table(dat19$R$mark_strata))
+mix_tab
+DescTools::GTest(mix_tab)
+
+eqprop_tab <- rbind(table(dat19$R$strata), table(dat19$C$strata) - table(dat19$R$strata))
+eqprop_tab
+DescTools::GTest(eqprop_tab)
+
+completemix_tab <- rbind(table(dat19$R$mark_strata), table(dat19$M$strata) - table(dat19$R$mark_strata))
+completemix_tab
+chisq.test(completemix_tab)
+```
+
+The strength of this project is the idea that the weir is a kelt census satisfying most of the typical mark-recapture assumptions. You expressed doubts about the weir as a kelt census and that thought is defiantly supported in some years. That said, I don't see any obvious truncation this year.  
+```{r}
+#weir captures whole run
+ggplot(dat19$weir, aes(x = as.Date(date), weight = daily)) +
+  geom_histogram(binwidth = 1) +
+  scale_x_date(date_labels = "%m/%d", date_breaks = "weeks") +
+  labs(x = "Date")
+```
+
+Here are the relevant sample sizes, the estimated abundance and the SE of the estimated abundance.
+```{r, echo = TRUE}
+M <- dim(dat19$M)[1]; M
+C <- max(dat19$weir$cum)[1]; C
+R <- sum(dat19$R$Ytag); R
+N <- (M + 1) * (C + 1) / (R + 1) - 1; N
+N_se <- sqrt((M + 1) * (C + 1) * (M - R) * (C - R) / (R + 1) ^2 / (R + 2)); N_se
+```
+  
+## ASL at the weir
+ASL from the weir is pretty straightforward. Timing of the ASL samples was not representative of emigration in general...
+```{r}
+#But... ASL samples are not representative of emmigration in general
+plot_w <- dat19$weir[, c("date", "daily")]
+plot_w$source = "Weir count"
+
+plot_age <-
+  aggregate(lg_type ~ date, dat19$C, FUN = length) %>%
+  setNames(c("date", "daily"))
+plot_age$source <- "age samples"
+
+dplyr::left_join(plot_w, plot_age, by = "date") %>%
+  dplyr::select(date,
+                emmigration = daily.x,
+                samples = daily.y) %>%
+  dplyr::mutate(samples = ifelse(is.na(samples), 0, samples)) %>%
+  aslpack::plot_ks("emmigration")
+```
+  
+But sex is time invariant. The rows represent temporal strata at the weir (I only chose two strata because the main differences between sampling and emigration fell on either side of the 50% cumulative passage mark).
+```{r}
+#But... Sex and age comp are time invariant
+#Redefine strata since major difference are early and late
+C19 <- dat19$C #new dataframe since aslpack::tab_lr looks for a varible named "strata"
+C19$strata <- cut(dat19$C$date,
+                       quantile(rep(dat19$weir$date, times = dat19$weir$daily), c(0, .5, 1)),
+                       labels = FALSE)
+aslpack::tab_lr(C19[!is.na(C19$sex), ], "sex")
+```
+  
+Saltwater age is also time invariant.
+```{r}
+aslpack::tab_lr(C19[!is.na(C19$age_s), ], "age_s")
+```
+
+Here is the ASL table for kelts at the weir. I followed the convention from earlier reports where the estimates were separated into saltwater age and initial/repeat spawners. In the early reports they had repeat and multi-repeat categories but we only had 3 fish that were multi-repeat. This table is a little messy but you could improve it a lot with some excel formatting.
+```{r}
+#Convert aslpack::tab_asl to accept non-euro ages
+test <-
+  function(dat,
+           totalname = "Total",
+           output = "asl",
+           display_cols = NULL,
+           gather_cols = c("n.z", "p.z", "ci_p.z", "t.z", "lg.z", "range_lg.z"),
+           age_labels = NULL,
+           overall_se = NULL){
+    stopifnot(!(display_cols %in% c(NULL, "stats")))
+
+    if(!is.null(overall_se)) dat$sd_t.z[dat$age == "All" & dat$sex == "Both"] = overall_se
+    if(is.null(age_labels)) age_labels <- c(unique(dat$age)[-length(unique(dat$age))], "All ages")
+
+    temp <-
+      dat %>%
+      dplyr::mutate_at(c("p.z", "sd_p.z", "lci_p.z", "uci_p.z"), list(~ trimws(format(round(., 3), nsmall = 3)))) %>%
+      dplyr::mutate_at(c("lg.z", "se_lg.z"), list(~ trimws(format(round(., 1), big.mark = ",", nsmall = 1)))) %>%
+      dplyr::mutate_at(c("n.z", "min_lg.z", "max_lg.z"), as.integer) %>%
+      dplyr::mutate(p.z = paste0(p.z, " (", ifelse(sex =="Both" & age == "All", 0, sd_p.z), ")"),
+                    ci_p.z = ifelse(sex =="Both" & age == "All", "", paste0(lci_p.z, " - ", uci_p.z)),
+                    t.z = paste0(trimws(format(round(t.z, 0), big.mark = ",", nsmall = 0)),
+                                 " (",
+                                 trimws(format(round(sd_t.z, 0), big.mark = ",", nsmall = 0)),
+                                 ")"),
+                    lg.z = paste0(lg.z, " (", se_lg.z, ")"),
+                    range_lg.z = paste0("(", min_lg.z, "-", max_lg.z, ")")) %>%
+      dplyr::select(sex, age, gather_cols) %>%
+      tidyr::gather_("measure", "value", gather_cols = gather_cols) %>%
+      dplyr::mutate(sex_lab = factor(sex, levels = c("F",       "M",     "Both"),
+                                     labels = c("Females", "Males", "Both Sexes"),
+                                     ordered = TRUE, exclude = NULL),
+                    stat_lab = factor(measure, levels = c("n.z",
+                                                          "p.z",
+                                                          "ci_p.z",
+                                                          "t.z",
+                                                          "lg.z",
+                                                          "range_lg.z"),
+                                      labels = c("Sample size",
+                                                 "Proportion (SE)",
+                                                 "95% CI(Proportion)",
+                                                 paste0(totalname, "(SE)"),
+                                                 "Mean Length (SE)",
+                                                 "Range(Length)"),
+                                      ordered = TRUE),
+                    age_lab = factor(age,
+                                     levels = unique(dat$age),
+                                     labels = age_labels,
+                                     ordered = TRUE, exclude = NULL)) %>%
+      dplyr::select(sex_lab, stat_lab, age_lab, value)
+
+    switch(output,
+           "al" = temp %>%
+             dplyr::filter(sex_lab == "Both Sexes") %>%
+             dplyr::select(-sex_lab) %>%
+             tidyr::spread(if(is.null(display_cols)) age_lab else(stat_lab), value),
+           "sl" = temp %>%
+             dplyr::filter(age_lab == "All ages") %>%
+             dplyr::select(-age_lab) %>%
+             tidyr::spread(if(is.null(display_cols)) sex_lab else(stat_lab), value),
+           "asl" = temp %>% tidyr::spread(if(is.null(display_cols)) age_lab else(stat_lab), value))
+  }
+
+
+#Sex comp first since unaged fish skew sex comp
+sl_tab <-
+  dat19$C %>%
+  dplyr::select(age = age_s, sex, length) %>%
+  dplyr::filter(!is.na(sex)) %>%
+  asl(data.frame(total = C, se_total = 0))
+
+weir_sex <- #Emmigration by sex
+  sl_tab[sl_tab$age %in% "All", ] %>%
+  dplyr::select(sex_strata = sex, total = t.z, se_total = sd_t.z)
+
+age_clean <- #clean data with sex as a stratification varible
+  dat19$C %>%
+  dplyr::select(age = age_s, sex, length, spawn) %>%
+  dplyr::filter(!is.na(age) & !is.na(sex)) %>%
+  dplyr::mutate(age2 = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat")))
+age_clean$sex_strata = age_clean$sex
+
+# asl(age_clean, weir_sex, c("sex_strata")) %>%
+#   combine_strata() %>%
+#   test(totalname = "Kelts", output = "asl", overall_se = 0)
+
+age_clean2 <- age_clean #new dataset which combines age and inital/repeat spawning info in age label
+age_clean2$age <- age_clean2$age2
+asl(age_clean2, weir_sex, c("sex_strata")) %>%
+  combine_strata() %>%
+  test(totalname = "Kelts", output = "asl", overall_se = 0) %>%
+  knitr::kable()
+```
+  
+## ASL on the spawning grounds 
+For the spawning steelhead ASL we are assuming a single representative grab sample.
+```{r}
+#ASL on spawning grounds
+dat19$M %>%
+  dplyr::select(age0 = age_s, sex, length, spawn) %>%
+  dplyr::filter(!is.na(age0) & !is.na(sex)) %>%
+  dplyr::mutate(age = ifelse(spawn %in% 1, paste0(age0, "-Initial"), paste0(age0, "-Repeat"))) %>%
+  asl(data.frame(total = N, se_total = N_se)) %>%
+  test(totalname = "Spawners", output = "asl") %>%
+  knitr::kable()
+```
+  
+## Spawning survival
+The first row of numbers is the estimate, the second row of numbers is the SE.
+```{r}
+#Spawning survival
+#need to expand recaps for sampling fraction
+psamp <- sum(!is.na(dat19$R$sex)) / sum(dat19$R$Ytag)
+V_psamp <- psamp * (1 - psamp) / (sum(dat19$R$Ytag) - 1)
+
+Rspawn_samp <- table(stringr::str_count(dat19$R$age, "s"))
+Rspawn_obs <- Rspawn_samp / psamp
+#From taylor series expansion. V(R/S) ~ varR/muS^2 -2muR*covRS/muS^3 +muR^2*varS/muS^4
+V_Rspawn_obs <- Rspawn_samp^2 / psamp^4 * V_psamp
+Mspawn_obs <- c(sum(dat19$M$spawn %in% "1"), sum(dat19$M$spawn %in% c("2", "3")))
+(Rspawn_obs / Mspawn_obs) %>% setNames(c("Initial", "Repeat"))
+sqrt(V_Rspawn_obs / Mspawn_obs^2) %>% setNames(c("Initial", "Repeat"))
+```
+  
+## Misc. plots
+I replicated a few plots from the prior reports and made a new one of my own. You can decide if any of these are necessary and if so I can clean them up or make some edits as appropriate. This is intended to mimic Figure 6 from FDS 97-6.
+```{r, fig.width=10}
+#Replicate figure 6 from FDS 97-6
+plot_w <- dat19$weir[, c("date", "daily")]
+plot_w$source = "Weir count"
+
+plot_R <-
+  aggregate(Ytag ~ date, dat19$R, FUN = sum) %>%
+  setNames(c("date", "daily"))
+plot_R$source <- "recaps"
+
+dplyr::left_join(plot_w, plot_R, by = "date") %>%
+  dplyr::mutate(unmarked = daily.x  - ifelse(is.na(daily.y), 0, daily.y)) %>%
+  dplyr::select(date, marked = daily.y, unmarked) %>%
+  tidyr::gather(group, daily, -date) %>%
+  dplyr::mutate(week = gsub("[0-9]+-([0-9]+-[0-9]+)", "\\1", cut(date, "weeks"))) %>%
+  dplyr::group_by(week, group) %>%
+  dplyr::summarise(weekly = sum(daily, na.rm = TRUE)) %>%
+  ggplot(aes(x = week, y = weekly, fill = group)) +
+  geom_col(position = position_stack(reverse = TRUE)) +
+  scale_fill_manual(values = c("marked" = "black", "unmarked" = "gray"))
+```
+
+This is intended to mimic Figure 8 from FDS 97-6. THe numbers above each bar represent the sample size in each week.
+```{r}
+#Replicate figure 8 from FDS 97-6
+weekly_sex <-
+  dat19$C %>%
+  dplyr::filter(!is.na(sex)) %>%
+  dplyr::mutate(week = gsub("[0-9]+-([0-9]+-[0-9]+)", "\\1", cut(date, "weeks"))) %>%
+  dplyr::group_by(week, sex) %>%
+  dplyr::summarise(weekly = length(sex))
+
+ggplot(weekly_sex, aes(x = week, y = weekly, fill = sex)) +
+  geom_bar(position = position_fill(reverse = TRUE), stat = "identity") +
+  scale_fill_manual(values = c("M" = "black", "F" = "gray")) +
+  geom_text(data = aggregate(weekly ~ week, weekly_sex, FUN = sum),
+            aes(x = week, y = 1, label = weekly),
+            inherit.aes = FALSE,
+            vjust = -.25)
+```
+
+Finally recall we did not see size differences between the events. These plots combine all of the ASL samples from both events. Length distribution by total age.
+```{r, fig.height=8, fig.width=10}
+#Length composition by total age
+# dat19$M %>%
+#   dplyr::filter(!is.na(age_f) & !is.na(length)) %>%
+#   dplyr::mutate(lg_g = cut(length, breaks = seq(0, 1000, 25))) %>%
+#   ggplot(aes(x = lg_g, fill = spawn)) +
+#   geom_bar() +
+#   facet_grid(age_t ~ .)
+#
+# dat19$C %>%
+#   dplyr::filter(!is.na(age_f) & !is.na(length)) %>%
+#   dplyr::mutate(lg_g = cut(length, breaks = seq(0, 1000, 25))) %>%
+#   ggplot(aes(x = lg_g, fill = spawn)) +
+#   geom_bar() +
+#   facet_grid(age_t ~ .)
+
+rbind(dat19$C[, c("length", "age_f", "age_s", "age_t", "spawn")], dat19$M[, c("length", "age_f", "age_s", "age_t", "spawn")]) %>%
+  dplyr::filter(!is.na(age_f) & !is.na(length)) %>%
+  dplyr::mutate(lg_g = cut(length, breaks = seq(0, 1000, 25))) %>%
+  ggplot(aes(x = lg_g, fill = spawn)) +
+  geom_bar() +
+  facet_grid(age_t ~ .)
+```
+  
+Length distribution by saltwater age.  
+```{r, fig.height=8, fig.width=10}
+rbind(dat19$C[, c("length", "age_f", "age_s", "age_t", "spawn")], dat19$M[, c("length", "age_f", "age_s", "age_t", "spawn")]) %>%
+  dplyr::filter(!is.na(age_s) & !is.na(length)) %>%
+  dplyr::mutate(lg_g = cut(length, breaks = seq(0, 1000, 25))) %>%
+  ggplot(aes(x = lg_g, fill = spawn)) +
+  geom_bar() +
+  facet_grid(age_s ~ .)
+```
+
+# 2017 abundance
+I think we need to revisit the 2017 abundance estimate. I made some pretty strong assumptions that do not look believable in light of the new data. Also, Mark implied the 2017 data may have the same problem as the 2018 data (The same rouge technician). If this is true the best thing would be to drop the 2017 estimate entirely. If we trust the 2017 data I can take a second look but I'm leaning toward only generating an estimate for females. We should discuss this by phone.
