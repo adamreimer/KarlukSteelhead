@@ -13,12 +13,10 @@ library(aslpack)
 load("..\\data\\dat19.rda")
 ```
 
-Hi Tyler, The 2019 analysis is fairly straightforward but it does change how we interpret the 2017 preliminary write up we worked on previously. In short, some of the assumptions I felt were OK back then I'm not comfortable with now. Please take a look and then let’s discuss.
-  
 # Abundance estimate  
   
 ## Size Selective Sampling Tests  
-With respect to size there is no evidence of selective sampling during either event. None of these plots look great to me but the test statistic is insignificant for all three tests. These tests all point toward used of a pooled Peterson estimator.
+With respect to size there is no evidence of selective sampling during either event. None of these plots look great to me but the test statistic is insignificant for all three tests. These tests all point toward used of a pooled Chapman estimator.
 ```{r echo = FALSE}
 test_ks <- function(lg1, lg2, title){
   name1 <- deparse(substitute(lg1))
@@ -48,7 +46,7 @@ test_ks(M_lg, C_lg, "M vs. C")
 ```
   
 ## Sex Selective Sampling Tests
-With respect to sex selective sampling we fall into case V (inconsistent test results). The issue is that both sex selectivity tests point to non-selective sampling but the sex composition of the two events differs. Two interpretations are possible. First, we could assume the sex comp at the weir is the better estimate and the event specific tests likely have low power due to a small sample sizes. Under this interpretation the mark-recapture can still be pooled but we would have to be careful about using the age/sex composition stuff from the marking event because we believe that sampling may have been selective. The other interpretation is that both events had non-selective sampling but that survival differed between events. This seems to be the common assumption in the earlier reports. I'm comfortable with the second assumption if you are.
+With respect to sex selective sampling we fall into case V (inconsistent test results). The issue is that both sex selectivity tests point to non-selective sampling but the sex composition of the two events differs. Two interpretations are possible. First, we could assume the sex comp at the weir is the better estimate and the event specific tests likely have low power due to a small sample sizes. Under this interpretation the mark-recapture can still be pooled but we would have to be careful about using the age/sex composition stuff from the marking event because we believe that sampling may have been selective. The other interpretation is that both events had non-selective sampling but that survival differed between events.
 ```{r}
 #sex selectivity
 #first event unbiased
@@ -105,7 +103,7 @@ N_se <- sqrt((M + 1) * (C + 1) * (M - R) * (C - R) / (R + 1) ^2 / (R + 2)); N_se
 ```
   
 ## ASL at the weir
-ASL from the weir is pretty straightforward. Timing of the ASL samples was not representative of emigration in general...
+Timing of the ASL samples was not representative of emigration in general...
 ```{r}
 #But... ASL samples are not representative of emmigration in general
 plot_w <- dat19$weir[, c("date", "daily")]
@@ -118,10 +116,10 @@ plot_age$source <- "age samples"
 
 dplyr::left_join(plot_w, plot_age, by = "date") %>%
   dplyr::select(date,
-                emmigration = daily.x,
+                emigration = daily.x,
                 samples = daily.y) %>%
   dplyr::mutate(samples = ifelse(is.na(samples), 0, samples)) %>%
-  aslpack::plot_ks("emmigration")
+  aslpack::plot_ks("emigration")
 ```
   
 But sex is time invariant. The rows represent temporal strata at the weir (I only chose two strata because the main differences between sampling and emigration fell on either side of the 50% cumulative passage mark).
@@ -140,7 +138,7 @@ Saltwater age is also time invariant.
 aslpack::tab_lr(C19[!is.na(C19$age_s), ], "age_s")
 ```
 
-Here is the ASL table for kelts at the weir. I followed the convention from earlier reports where the estimates were separated into saltwater age and initial/repeat spawners. In the early reports they had repeat and multi-repeat categories but we only had 3 fish that were multi-repeat. This table is a little messy but you could improve it a lot with some excel formatting.
+Here is the ASL table for kelts at the weir. I followed the convention from earlier reports where the estimates were separated into saltwater age and initial/repeat spawners. In the early reports they had repeat and multi-repeat categories but we only had 3 fish that were multi-repeat. This table is a little messy but will look nicer with some excel formatting.
 ```{r}
 #Convert aslpack::tab_asl to accept non-euro ages
 test <-
@@ -237,7 +235,7 @@ asl(age_clean2, weir_sex, c("sex_strata")) %>%
 ```
   
 ## ASL on the spawning grounds 
-For the spawning steelhead ASL we are assuming a single representative grab sample.
+For the spawning steelhead ASL we are assuming a single representative grab sample. Consider this table a placeholder dependent on your interpretation of the test results. Are you bothered by having fewer age categories in this sample vs the emigrant sample? I think we could do this a few ways depending on how we want to interpret our test results. Recall the mark and recapture samples are not different buy size but are different by sex. I also tested for differences by saltwater age composition and composition of initial/repeat spawners (both were not significant). Do you think the sex composition difference reflects sampling bias from the first event of survival differences?
 ```{r}
 #ASL on spawning grounds
 dat19$M %>%
@@ -250,7 +248,7 @@ dat19$M %>%
 ```
   
 ## Spawning survival
-The first row of numbers is the estimate, the second row of numbers is the SE.
+The first row of numbers is the estimate, the second row of numbers is the SE. I made seperate calculations for initial/repeat spawners because they did that in FDS 97. That said the estimates have widely overlapping CI and we could present one number or by sex.
 ```{r}
 #Spawning survival
 #need to expand recaps for sampling fraction
@@ -290,7 +288,7 @@ dplyr::left_join(plot_w, plot_R, by = "date") %>%
   scale_fill_manual(values = c("marked" = "black", "unmarked" = "gray"))
 ```
 
-This is intended to mimic Figure 8 from FDS 97-6. THe numbers above each bar represent the sample size in each week.
+This is intended to mimic Figure 8 from FDS 97-6. The numbers above each bar represent the sample size in each week.
 ```{r}
 #Replicate figure 8 from FDS 97-6
 weekly_sex <-
@@ -345,4 +343,4 @@ rbind(dat19$C[, c("length", "age_f", "age_s", "age_t", "spawn")], dat19$M[, c("l
 ```
 
 # 2017 abundance
-I think we need to revisit the 2017 abundance estimate. I made some pretty strong assumptions that do not look believable in light of the new data. Also, Mark implied the 2017 data may have the same problem as the 2018 data (The same rouge technician). If this is true the best thing would be to drop the 2017 estimate entirely. If we trust the 2017 data I can take a second look but I'm leaning toward only generating an estimate for females. We should discuss this by phone.
+I think we need to revisit the 2017 abundance estimate. I made some pretty strong assumptions that do not look believable in light of the new data. Also, Mark implied the 2017 data may have the same problem as the 2018 data (The same rouge technician). If this is true the best thing would be to drop the 2017 estimate entirely. We should discuss this by phone.

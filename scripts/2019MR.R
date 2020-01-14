@@ -42,6 +42,7 @@ MR <- data.frame(strata= c(rep("M", length(M_sex)), rep("R", length(R_sex ))),
                  sex = c(M_sex, R_sex))
 aslpack::tab_lr(MR, "sex")
 
+#sex comp differs by event
 MC <- data.frame(strata= c(rep("M", length(M_sex)), rep("C", length(C_sex ))),
                  sex = c(M_sex, C_sex))
 aslpack::tab_lr(MC, "sex")
@@ -203,43 +204,59 @@ asl(age_clean2, weir_sex, c("sex_strata")) %>%
 
 ######
 #ASL on spawning grounds
+#Assuming the grab sample is good
 dat19$M %>%
   dplyr::select(age = age_s, sex, length) %>%
   dplyr::filter(!is.na(sex)) %>%
   asl(data.frame(total = N, se_total = N_se)) %>%
   test(totalname = "Spawners", output = "asl")
 
+#but note. Could use weir sex comp and H&L ages or pooled ages
+R_age0 <- dat19$R[!is.na(dat19$R$age_s), ]
+R_age <- ifelse(R_age0$spawn %in% 1, paste0(R_age0$age_s, "-Initial"), paste0(R_age0$age_s, "-Repeat"))
+C_age0 <- dat19$C[!is.na(dat19$C$age_s), ]
+C_age <- ifelse(C_age0$spawn %in% 1, paste0(C_age0$age_s, "-Initial"), paste0(C_age0$age_s, "-Repeat"))
+M_age0 <- dat19$M[!is.na(dat19$M$age_s), ]
+M_age <- ifelse(M_age0$spawn %in% 1, paste0(M_age0$age_s, "-Initial"), paste0(M_age0$age_s, "-Repeat"))
 
-#Length composition by total age
-# dat19$M %>%
-#   dplyr::filter(!is.na(age_f) & !is.na(length)) %>%
-#   dplyr::mutate(lg_g = cut(length, breaks = seq(0, 1000, 25))) %>%
-#   ggplot(aes(x = lg_g, fill = spawn)) +
-#   geom_bar() +
-#   facet_grid(age_t ~ .)
-#
-# dat19$C %>%
-#   dplyr::filter(!is.na(age_f) & !is.na(length)) %>%
-#   dplyr::mutate(lg_g = cut(length, breaks = seq(0, 1000, 25))) %>%
-#   ggplot(aes(x = lg_g, fill = spawn)) +
-#   geom_bar() +
-#   facet_grid(age_t ~ .)
+#saltwater age tests: no differences between events
+CR <- data.frame(strata= c(rep("C", length(C_age)), rep("R", length(R_age))),
+                 age_s = c(C_age, R_age))
+aslpack::tab_lr(CR, "age_s")
 
-rbind(dat19$C[, c("length", "age_f", "age_s", "age_t", "spawn")], dat19$M[, c("length", "age_f", "age_s", "age_t", "spawn")]) %>%
-  dplyr::filter(!is.na(age_f) & !is.na(length)) %>%
-  dplyr::mutate(lg_g = cut(length, breaks = seq(0, 1000, 25))) %>%
-  ggplot(aes(x = lg_g, fill = spawn)) +
-  geom_bar() +
-  facet_grid(age_t ~ .)
+MR <- data.frame(strata= c(rep("M", length(M_age)), rep("R", length(R_age))),
+                 age_s = c(M_age, R_age))
+aslpack::tab_lr(MR, "age_s")
 
-rbind(dat19$C[, c("length", "age_f", "age_s", "age_t", "spawn")], dat19$M[, c("length", "age_f", "age_s", "age_t", "spawn")]) %>%
-  dplyr::filter(!is.na(age_s) & !is.na(length)) %>%
-  dplyr::mutate(lg_g = cut(length, breaks = seq(0, 1000, 25))) %>%
-  ggplot(aes(x = lg_g, fill = spawn)) +
-  geom_bar() +
-  facet_grid(age_s ~ .)
+MC <- data.frame(strata= c(rep("M", length(M_age)), rep("C", length(C_age))),
+                 age_s = c(M_age, C_age))
+aslpack::tab_lr(MC, "age_s", )
 
+#Initial/repeat spawning tests: no differences between events
+CR2 <- data.frame(strata= c(rep("C", length(C_age0$spawn)), rep("R", length(R_age0$spawn))),
+                  spawn = c(C_age0$spawn, R_age0$spawn))
+aslpack::tab_lr(CR2, "spawn")
 
+MR2 <- data.frame(strata= c(rep("M", length(M_age0$spawn)), rep("R", length(R_age0$spawn))),
+                  spawn = c(M_age0$spawn, R_age0$spawn))
+aslpack::tab_lr(MR2, "spawn")
+
+MC2 <- data.frame(strata= c(rep("M", length(M_age0$spawn)), rep("C", length(C_age0$spawn))),
+                  spawn = c(M_age0$spawn, C_age0$spawn))
+aslpack::tab_lr(MC2, "spawn", )
+
+#Spawning survival: by initial/repeat spawning for now
+#need to expand recaps for sampling fraction
+psamp <- sum(!is.na(dat19$R$sex)) / sum(dat19$R$Ytag)
+V_psamp <- psamp * (1 - psamp) / (sum(dat19$R$Ytag) - 1)
+
+Rspawn_samp <- table(stringr::str_count(dat19$R$age, "s"))
+Rspawn_obs <- Rspawn_samp / psamp
+#From taylor series expansion. V(R/S) ~ varR/muS^2 -2muR*covRS/muS^3 +muR^2*varS/muS^4
+V_Rspawn_obs <- Rspawn_samp^2 / psamp^4 * V_psamp
+Mspawn_obs <- c(sum(dat19$M$spawn %in% "1"), sum(dat19$M$spawn %in% c("2", "3")))
+Rspawn_obs / Mspawn_obs
+sqrt(V_Rspawn_obs / Mspawn_obs^2)
 
 #Replicate figure 6 from FDS 97-6
 plot_R <-
@@ -280,15 +297,19 @@ ggplot(weekly_sex, aes(x = week, y = weekly, fill = sex)) +
             inherit.aes = FALSE,
             vjust = -.25)
 
-#Spawning survival
-#need to expand recaps for sampling fraction
-psamp <- sum(!is.na(dat19$R$sex)) / sum(dat19$R$Ytag)
-V_psamp <- psamp * (1 - psamp) / (sum(dat19$R$Ytag) - 1)
 
-Rspawn_samp <- table(stringr::str_count(dat19$R$age, "s"))
-Rspawn_obs <- Rspawn / psamp
-#From taylor series expansion. V(R/S) ~ varR/muS^2 -2muR*covRS/muS^3 +muR^2*varS/muS^4
-V_Rspawn_obs <- Rspawn^2 / psamp^4 * V_psamp
-Mspawn_obs <- c(sum(dat19$M$spawn %in% "1"), sum(dat19$M$spawn %in% c("2", "3")))
-Rspawn_obs / Mspawn_obs
-sqrt(V_Rspawn_obs / Mspawn_obs^2)
+#Length composition by total age
+rbind(dat19$C[, c("length", "age_f", "age_s", "age_t", "spawn")], dat19$M[, c("length", "age_f", "age_s", "age_t", "spawn")]) %>%
+  dplyr::filter(!is.na(age_f) & !is.na(length)) %>%
+  dplyr::mutate(lg_g = cut(length, breaks = seq(0, 1000, 25))) %>%
+  ggplot(aes(x = lg_g, fill = spawn)) +
+  geom_bar() +
+  facet_grid(age_t ~ .)
+
+rbind(dat19$C[, c("length", "age_f", "age_s", "age_t", "spawn")], dat19$M[, c("length", "age_f", "age_s", "age_t", "spawn")]) %>%
+  dplyr::filter(!is.na(age_s) & !is.na(length)) %>%
+  dplyr::mutate(lg_g = cut(length, breaks = seq(0, 1000, 25))) %>%
+  ggplot(aes(x = lg_g, fill = spawn)) +
+  geom_bar() +
+  facet_grid(age_s ~ .)
+
