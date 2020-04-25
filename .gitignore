@@ -9,3 +9,4 @@ data/data_raw/*.xls
 /FDSreports
 /Opplans
 /markdown/*.html
+*.xls

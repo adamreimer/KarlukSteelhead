@@ -52,10 +52,10 @@ weir_daily19 <-
                      range = "Emmigration!A3:C121") %>%
   setNames(tolower(names(.)))
 weir_daily19
-Cbreaks <- quantile(rep(weir_daily19$date, times = weir_daily19$daily), c(0, .333, .666, 1)); Cbreaks
+Cbreaks <- quantile(rep(weir_daily19$date, times = weir_daily19$daily)); Cbreaks
 plot(weir_daily19$date, weir_daily19$daily)
 abline(v = Cbreaks)
-lubridate::day(Cbreaks[4]) <- 3 #make last strata include last fish
+lubridate::day(Cbreaks[5]) <- 3 #make last strata include last fish
 plot(weir_daily19$date, weir_daily19$daily)
 abline(v = Cbreaks)
 plot(weir_daily19$date, weir_daily19$cum)
@@ -137,13 +137,13 @@ C19[is.na(C19$age), ] %>% print(n = 100)
 dat19 <- list(M = M19, C = C19, R = R19, weir = weir_daily19)
 save(dat19, file = ".\\data\\dat19.rda")
 
-# temp <-
-#   weir_daily19 %>%
-#   dplyr::select(-strata) %>%
-#   dplyr::mutate(year = format(date, "%Y"),
-#                 date = as.Date(paste0(format(date, "%m"), "-", format(date, "%d"), "-", year), "%m-%d-%Y"),
-#                 jday = as.numeric(format(date, "%j")),
-#                 week = format(date, "%U"))
-# load(".\\data\\weir_daily.rda")
-# weir_daily <- rbind(weir_daily, temp) %>% dplyr::arrange(date)
-# save(weir_daily, file = ".\\data\\weir_daily.rda")
+temp <-
+  weir_daily19 %>%
+  dplyr::select(-strata) %>%
+  dplyr::mutate(year = format(date, "%Y"),
+                date = as.Date(paste0(format(date, "%m"), "-", format(date, "%d"), "-", year), "%m-%d-%Y"),
+                jday = as.numeric(format(date, "%j")),
+                week = format(date, "%U"))
+load(".\\data\\weir_daily.rda")
+weir_daily <- rbind(weir_daily[!weir_daily$year == 2019,], temp) %>% dplyr::arrange(date)
+save(weir_daily, file = ".\\data\\weir_daily.rda")

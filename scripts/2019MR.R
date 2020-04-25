@@ -2,22 +2,8 @@ library(magrittr)
 library(ggplot2)
 library(aslpack)
 load(".\\data\\dat19.rda")
+source(".\\scripts\\utils.R")
 
-test_ks <- function(lg1, lg2, title){
-  name1 <- deparse(substitute(lg1))
-  name2 <- deparse(substitute(lg2))
-  plot(ecdf(lg1),
-       main = title,
-       ylab = "Proportion",
-       xlab = "length")
-  plot(ecdf(lg2), add = TRUE, col = "red")
-  legend(quantile(lg1, .65, na.rm = TRUE), .40, legend = c(name1, name2), col = c("black", "red"), pch = 16)
-  test <- ks.test(as.numeric(lg1),
-                  as.numeric(lg2))
-  text(quantile(lg1, .65, na.rm = TRUE), .1,
-       labels = paste0(test$method, "\n p.val = ", format.pval(test$p.value, digits = 2, eps = 0.001, nsmall = 3)),
-       adj = 0)
-}
 #no size selectivity
 R_lg <- dat19$R$length[!is.na(dat19$R$length)]
 C_lg <- dat19$C$length[!is.na(dat19$C$length)]
@@ -101,76 +87,12 @@ dplyr::left_join(plot_w, plot_age, by = "date") %>%
 
 #But... Sex and age comp are time invariant
 #Redefine strata since major difference are early and late
-C19 <- dat19$C #new dataframe since aslpack::tab_lr looks for a varible named "strata"
-C19$strata <- cut(dat19$C$date,
-                       quantile(rep(dat19$weir$date, times = dat19$weir$daily), c(0, .5, 1)),
-                       labels = FALSE)
-aslpack::tab_lr(C19[!is.na(C19$sex), ], "sex")
-aslpack::tab_lr(C19[!is.na(C19$age_s), ], "age_s")
+aslpack::tab_lr(dat19$C[!is.na(dat19$C$sex), ], "sex")
+aslpack::tab_lr(dat19$C[!is.na(dat19$C$age_s), ], "age_s")
+aslpack::tab_lr(dat19$C[!is.na(dat19$C$age_s), ], "spawn")
 
-#Convert aslpack::tab_asl to accept non-euro ages
-test <-
-  function(dat,
-           totalname = "Total",
-           output = "asl",
-           display_cols = NULL,
-           gather_cols = c("n.z", "p.z", "ci_p.z", "t.z", "lg.z", "range_lg.z"),
-           age_labels = NULL,
-           overall_se = NULL){
-    stopifnot(!(display_cols %in% c(NULL, "stats")))
-
-    if(!is.null(overall_se)) dat$sd_t.z[dat$age == "All" & dat$sex == "Both"] = overall_se
-    if(is.null(age_labels)) age_labels <- c(unique(dat$age)[-length(unique(dat$age))], "All ages")
-
-    temp <-
-      dat %>%
-      dplyr::mutate_at(c("p.z", "sd_p.z", "lci_p.z", "uci_p.z"), list(~ trimws(format(round(., 3), nsmall = 3)))) %>%
-      dplyr::mutate_at(c("lg.z", "se_lg.z"), list(~ trimws(format(round(., 1), big.mark = ",", nsmall = 1)))) %>%
-      dplyr::mutate_at(c("n.z", "min_lg.z", "max_lg.z"), as.integer) %>%
-      dplyr::mutate(p.z = paste0(p.z, " (", ifelse(sex =="Both" & age == "All", 0, sd_p.z), ")"),
-                    ci_p.z = ifelse(sex =="Both" & age == "All", "", paste0(lci_p.z, " - ", uci_p.z)),
-                    t.z = paste0(trimws(format(round(t.z, 0), big.mark = ",", nsmall = 0)),
-                                 " (",
-                                 trimws(format(round(sd_t.z, 0), big.mark = ",", nsmall = 0)),
-                                 ")"),
-                    lg.z = paste0(lg.z, " (", se_lg.z, ")"),
-                    range_lg.z = paste0("(", min_lg.z, "-", max_lg.z, ")")) %>%
-      dplyr::select(sex, age, gather_cols) %>%
-      tidyr::gather_("measure", "value", gather_cols = gather_cols) %>%
-      dplyr::mutate(sex_lab = factor(sex, levels = c("F",       "M",     "Both"),
-                                     labels = c("Females", "Males", "Both Sexes"),
-                                     ordered = TRUE, exclude = NULL),
-                    stat_lab = factor(measure, levels = c("n.z",
-                                                          "p.z",
-                                                          "ci_p.z",
-                                                          "t.z",
-                                                          "lg.z",
-                                                          "range_lg.z"),
-                                      labels = c("Sample size",
-                                                 "Proportion (SE)",
-                                                 "95% CI(Proportion)",
-                                                 paste0(totalname, "(SE)"),
-                                                 "Mean Length (SE)",
-                                                 "Range(Length)"),
-                                      ordered = TRUE),
-                    age_lab = factor(age,
-                                     levels = unique(dat$age),
-                                     labels = age_labels,
-                                     ordered = TRUE, exclude = NULL)) %>%
-      dplyr::select(sex_lab, stat_lab, age_lab, value)
-
-    switch(output,
-           "al" = temp %>%
-             dplyr::filter(sex_lab == "Both Sexes") %>%
-             dplyr::select(-sex_lab) %>%
-             tidyr::spread(if(is.null(display_cols)) age_lab else(stat_lab), value),
-           "sl" = temp %>%
-             dplyr::filter(age_lab == "All ages") %>%
-             dplyr::select(-age_lab) %>%
-             tidyr::spread(if(is.null(display_cols)) sex_lab else(stat_lab), value),
-           "asl" = temp %>% tidyr::spread(if(is.null(display_cols)) age_lab else(stat_lab), value))
-  }
-
+dat19$C %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = length)) + geom_histogram() + facet_grid(aged~.)
+dat19$C %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = sex)) + geom_histogram(stat = "count") + facet_grid(aged~.)
 
 #Sex comp first since unaged fish skew sex comp
 sl_tab <-
@@ -191,9 +113,9 @@ age_clean <- #clean data with sex as a stratification varible
   dplyr::mutate(age2 = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat")))
 age_clean$sex_strata = age_clean$sex
 
-asl(age_clean, weir_sex, c("sex_strata")) %>%
-  combine_strata() %>%
-  test(totalname = "Kelts", output = "asl", overall_se = 0)
+# asl(age_clean, weir_sex, c("sex_strata")) %>%
+#   combine_strata() %>%
+#   test(totalname = "Kelts", output = "asl", overall_se = 0)
 
 age_clean2 <- age_clean #new dataset which combines age and inital/repeat spawning info in age label
 age_clean2$age <- age_clean2$age2
@@ -204,59 +126,136 @@ asl(age_clean2, weir_sex, c("sex_strata")) %>%
 
 ######
 #ASL on spawning grounds
-#Assuming the grab sample is good
-dat19$M %>%
-  dplyr::select(age = age_s, sex, length) %>%
-  dplyr::filter(!is.na(sex)) %>%
-  asl(data.frame(total = N, se_total = N_se)) %>%
-  test(totalname = "Spawners", output = "asl")
+#no abundacne byt lets check anyway
+#Sex comp, age comp and spawning history do not across time strata
+aslpack::tab_lr(dat19$M[!is.na(dat19$M$sex), ], "sex")
+aslpack::tab_lr(dat19$M[!is.na(dat19$M$age_s), ], "age_s")
+aslpack::tab_lr(dat19$M[!is.na(dat19$M$age_s), ], "spawn")
 
-#but note. Could use weir sex comp and H&L ages or pooled ages
-R_age0 <- dat19$R[!is.na(dat19$R$age_s), ]
-R_age <- ifelse(R_age0$spawn %in% 1, paste0(R_age0$age_s, "-Initial"), paste0(R_age0$age_s, "-Repeat"))
+#Age/Sex comps by trip
+#Use these. Note sex comps similar despite smaller sample size
+lapply(1:2, function(x) {
+  dat19$M[dat19$M$strata %in% x, ] %>%
+    dplyr::select(age = age_s, sex, length, spawn) %>%
+    dplyr::filter(!is.na(sex) & !is.na(age)) %>%
+    dplyr::mutate(age = ifelse(spawn %in% 1, paste0(as.character(age), "-Initial"), paste0(as.character(age), "-Repeat"))) %>%
+    asl(data.frame(total = 10000, se_total = 0)) %>% #mock abundance to negate FPC
+    test(totalname = "Spawners", output = "asl")}
+)
+
+
+
+
 C_age0 <- dat19$C[!is.na(dat19$C$age_s), ]
 C_age <- ifelse(C_age0$spawn %in% 1, paste0(C_age0$age_s, "-Initial"), paste0(C_age0$age_s, "-Repeat"))
 M_age0 <- dat19$M[!is.na(dat19$M$age_s), ]
 M_age <- ifelse(M_age0$spawn %in% 1, paste0(M_age0$age_s, "-Initial"), paste0(M_age0$age_s, "-Repeat"))
 
 #saltwater age tests: no differences between events
-CR <- data.frame(strata= c(rep("C", length(C_age)), rep("R", length(R_age))),
-                 age_s = c(C_age, R_age))
-aslpack::tab_lr(CR, "age_s")
-
-MR <- data.frame(strata= c(rep("M", length(M_age)), rep("R", length(R_age))),
-                 age_s = c(M_age, R_age))
-aslpack::tab_lr(MR, "age_s")
-
 MC <- data.frame(strata= c(rep("M", length(M_age)), rep("C", length(C_age))),
                  age_s = c(M_age, C_age))
 aslpack::tab_lr(MC, "age_s", )
 
 #Initial/repeat spawning tests: no differences between events
-CR2 <- data.frame(strata= c(rep("C", length(C_age0$spawn)), rep("R", length(R_age0$spawn))),
-                  spawn = c(C_age0$spawn, R_age0$spawn))
-aslpack::tab_lr(CR2, "spawn")
-
-MR2 <- data.frame(strata= c(rep("M", length(M_age0$spawn)), rep("R", length(R_age0$spawn))),
-                  spawn = c(M_age0$spawn, R_age0$spawn))
-aslpack::tab_lr(MR2, "spawn")
-
 MC2 <- data.frame(strata= c(rep("M", length(M_age0$spawn)), rep("C", length(C_age0$spawn))),
                   spawn = c(M_age0$spawn, C_age0$spawn))
 aslpack::tab_lr(MC2, "spawn", )
 
-#Spawning survival: by initial/repeat spawning for now
-#need to expand recaps for sampling fraction
-psamp <- sum(!is.na(dat19$R$sex)) / sum(dat19$R$Ytag)
-V_psamp <- psamp * (1 - psamp) / (sum(dat19$R$Ytag) - 1)
 
-Rspawn_samp <- table(stringr::str_count(dat19$R$age, "s"))
-Rspawn_obs <- Rspawn_samp / psamp
-#From taylor series expansion. V(R/S) ~ varR/muS^2 -2muR*covRS/muS^3 +muR^2*varS/muS^4
-V_Rspawn_obs <- Rspawn_samp^2 / psamp^4 * V_psamp
-Mspawn_obs <- c(sum(dat19$M$spawn %in% "1"), sum(dat19$M$spawn %in% c("2", "3")))
-Rspawn_obs / Mspawn_obs
-sqrt(V_Rspawn_obs / Mspawn_obs^2)
+
+
+# #Spawning survival: by initial/repeat spawning for now
+# #need to expand recaps for sampling fraction
+# #large sample approximation (probably not appropriate)
+# psamp <- sum(!is.na(dat19$R$sex)) / sum(dat19$R$Ytag)
+# V_psamp <- psamp * (1 - psamp) / (sum(dat19$R$Ytag) - 1)
+#
+# Rspawn_samp <- table(stringr::str_count(dat19$R$age, "s"))
+# Rspawn_obs <- Rspawn_samp / psamp
+# #From taylor series expansion. V(R/S) ~ varR/muS^2 -2muR*covRS/muS^3 +muR^2*varS/muS^4
+# V_Rspawn_obs <- Rspawn_samp^2 / psamp^4 * V_psamp
+# Mspawn_obs <- c(sum(dat19$M$spawn %in% "1"), sum(dat19$M$spawn %in% c("2", "3")))
+# Rspawn_obs / Mspawn_obs
+# sqrt(V_Rspawn_obs / Mspawn_obs^2)
+
+#Spawning survival: by sex and initial/repeat spawning
+#with bootstrap
+#Note most of the estiamtes are wide with overlapping CI
+fun_Ssurv2 <- function(dat){
+  psamp <- sum(!is.na(dat$sex)) / sum(dat$Ytag)
+
+  Rspawn_samp <- as.matrix(table(stringr::str_count(dat$age, "s"), dat$sex))
+  if(dim(Rspawn_samp)[1] == 1) Rspawn_samp <- matrix(c(Rspawn_samp, 0, 0), 2, 2, byrow =TRUE)
+  Rspawn_obs <- Rspawn_samp / psamp
+  Mspawn_obs <- matrix(c(sum(dat19$M$spawn %in% "1" & dat19$M$sex %in% "M"),
+                         sum(dat19$M$spawn %in% "1" & dat19$M$sex %in% "F"),
+                         sum(dat19$M$spawn %in% c("2", "3") & dat19$M$sex %in% "M"),
+                         sum(dat19$M$spawn %in% c("2", "3") & dat19$M$sex %in% "F")), 2, 2, byrow = TRUE)
+  ifelse(Rspawn_obs / Mspawn_obs > 1, 1, Rspawn_obs / Mspawn_obs)
+}
+SsurvL <- rep(list(matrix(NA, 2,2)), times = 1000)
+for(i in 1:1000){
+  dat <- dat19$R[sample(1:dim(dat19$R)[1], size = dim(dat19$R)[1], replace = TRUE), ]
+  SsurvL[[i]] <- fun_Ssurv2(dat)
+}
+Ssurv <- data.frame(M_initial = rep(NA, 1000),
+                    F_initial = rep(NA, 1000),
+                    M_repeat = rep(NA, 1000),
+                    F_repeat = rep(NA, 1000))
+for(i in 1:1000) Ssurv[i,1] <- SsurvL[[i]][1,1]
+for(i in 1:1000) Ssurv[i,2] <- SsurvL[[i]][1,2]
+for(i in 1:1000) Ssurv[i,3] <- SsurvL[[i]][2,1]
+for(i in 1:1000) Ssurv[i,4] <- SsurvL[[i]][2,2]
+apply(Ssurv, 2, quantile, probs = c(0, 0.05, 0.5, 0.95, 1))
+apply(Ssurv, 2, mean)
+apply(Ssurv, 2, sd)
+
+#Spawning survival: by initial/repeat spawning
+#with bootstrap
+fun_Ssurv <- function(dat){
+  psamp <- sum(!is.na(dat$sex)) / sum(dat$Ytag)
+
+  Rspawn_samp <- as.vector(table(stringr::str_count(dat$age, "s")))
+  if(length(Rspawn_samp) == 1) Rspawn_samp <- c(Rspawn_samp, 0)
+  Rspawn_obs <- Rspawn_samp / psamp
+  Mspawn_obs <- c(sum(dat19$M$spawn %in% "1"), sum(dat19$M$spawn %in% c("2", "3")))
+  ifelse(Rspawn_obs / Mspawn_obs >1, 1, Rspawn_obs / Mspawn_obs)
+}
+Ssurv <- matrix(NA, nrow = 1000, ncol = 2)
+for(i in 1:1000){
+  dat <- dat19$R[sample(1:dim(dat19$R)[1], size = dim(dat19$R)[1], replace = TRUE), ]
+  Ssurv[i, ] <- fun_Ssurv(dat)
+}
+apply(Ssurv, 2, quantile, probs = c(0, 0.05, 0.5, 0.95, 1))
+apply(Ssurv, 2, mean)
+apply(Ssurv, 2, sd)
+
+#Spawning survival: by sex
+#with bootstrap
+fun_Ssurv <- function(dat){
+  psamp <- sum(!is.na(dat$sex)) / sum(dat$Ytag)
+
+  Rspawn_samp <- as.vector(table(dat$sex))
+  if(length(Rspawn_samp) == 1) Rspawn_samp <- c(Rspawn_samp, 0)
+  Rspawn_obs <- Rspawn_samp / psamp
+  Mspawn_obs <- table(dat19$M$sex)
+  ifelse(Rspawn_obs / Mspawn_obs >1, 1, Rspawn_obs / Mspawn_obs)
+}
+Ssurv <- matrix(NA, nrow = 1000, ncol = 2)
+for(i in 1:1000){
+  dat <- dat19$R[sample(1:dim(dat19$R)[1], size = dim(dat19$R)[1], replace = TRUE), ]
+  Ssurv[i, ] <- fun_Ssurv(dat)
+}
+apply(Ssurv, 2, quantile, probs = c(0, 0.05, 0.5, 0.95, 1))
+apply(Ssurv, 2, mean)
+apply(Ssurv, 2, sd)
+
+#OVerall Spawning survival
+#samples sizes too small to break down
+S <- R /M; S
+seS <- sqrt(S * (1 - S) / (M -1)); seS
+binom::binom.confint(R, M, conf.level = 0.95, method = "wilson")
+
 
 #Replicate figure 6 from FDS 97-6
 plot_R <-
@@ -281,6 +280,7 @@ dplyr::left_join(plot_w, plot_R, by = "date") %>%
 #   geom_col() +
 #   facet_grid(source ~ ., scales = "free_y")
 
+
 #Replicate figure 8 from FDS 97-6
 weekly_sex <-
   dat19$C %>%
@@ -296,6 +296,7 @@ ggplot(weekly_sex, aes(x = week, y = weekly, fill = sex)) +
             aes(x = week, y = 1, label = weekly),
             inherit.aes = FALSE,
             vjust = -.25)
+chisq.test(weekly_sex$sex, weekly_sex$weekly)
 
 
 #Length composition by total age
