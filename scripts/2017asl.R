@@ -52,7 +52,8 @@ dplyr::filter(weir_daily, year %in% 2017:2019) %>%
     scale_x_date(date_labels = "%m/%d", date_breaks = "weeks") +
     labs(x = "Date", y = "Number of fish") +
     ggtitle("Karluk Weir Kelt Count") +
-    facet_grid(year ~ .)
+    facet_grid(year ~ .) +
+    theme_bw(base_size = 16)
 
 #sexes are similarly distributed thru time at weir
 ggplot(dat17$C, aes(x = as.Date(date))) +

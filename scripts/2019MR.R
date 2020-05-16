@@ -4,6 +4,14 @@ library(aslpack)
 load(".\\data\\dat19.rda")
 source(".\\scripts\\utils.R")
 
+#Check text numbers
+table(dat19$M$strata)
+length(unique(dat19$M$tag))
+
+range(dat19$weir$date)
+max(dat19$weir$cum)
+sum(dat19$R$Ytag)
+
 #no size selectivity
 R_lg <- dat19$R$length[!is.na(dat19$R$length)]
 C_lg <- dat19$C$length[!is.na(dat19$C$length)]
@@ -13,6 +21,30 @@ test_ks(C_lg, R_lg, "C vs. R")
 test_ks(M_lg, R_lg, "M vs. R")
 test_ks(M_lg, C_lg, "M vs. C")
 par(mfrow = c(1,1))
+
+
+length(R_lg); length(M_lg); length(C_lg);
+#report version
+data.frame(sample = "Recaptured (n=20)",
+           Length = rep(R_lg, times = 2),
+           test = rep(c("Captured vs. Recaptured", "Marked vs. Recaptured"), each = length(R_lg))) %>%
+  rbind(data.frame(sample = "Marked (n=131)",
+                   Length = rep(M_lg, times = 2),
+                   test = rep(c("Marked vs. Recaptured", "Marked vs. Captured"), each = length(M_lg)))) %>%
+  rbind(data.frame(sample = "Captured (n=244)",
+                   Length = rep(C_lg, times = 2),
+                   test = rep(c("Captured vs. Recaptured", "Marked vs. Captured"), each = length(C_lg)))) %>%
+  ggplot(aes(x = Length, color = sample)) +
+    stat_ecdf(geom = "step") +
+    facet_grid(test ~ .) +
+    geom_label(aes(x = x, y = y, label = text),
+               data.frame(test = c("Captured vs. Recaptured", "Marked vs. Recaptured", "Marked vs. Captured"),
+                          text = c("D = 0.22 \n p = 0.33", "D = 0.27 \n p = 0.16", "D = 0.11 \n p = 0.23"),
+                          x = 425, y = .9),
+               inherit.aes = FALSE) +
+    ylab("Cumulative Relative frequency") +
+    theme_bw(base_size = 15)
+
 
 #sex selectivity
 #first event unbiased
@@ -33,12 +65,13 @@ MC <- data.frame(strata= c(rep("M", length(M_sex)), rep("C", length(C_sex ))),
                  sex = c(M_sex, C_sex))
 aslpack::tab_lr(MC, "sex")
 
+
 #Consistancy tests passed
 mix_tab <- cbind(table(dat19$R$mark_strata, dat19$R$strata), table(dat19$M$strata) - table(dat19$R$mark_strata))
 mix_tab
 DescTools::GTest(mix_tab)
 
-eqprop_tab <- rbind(table(dat19$R$strata), table(dat19$C$strata) - table(dat19$R$strata))
+eqprop_tab <- rbind(aggregate(Ytag ~ strata, dat19$R, sum)[[2]], table(dat19$C$strata) - aggregate(Ytag ~ strata, dat19$R, sum)[[2]])
 eqprop_tab
 DescTools::GTest(eqprop_tab)
 
@@ -46,13 +79,87 @@ completemix_tab <- rbind(table(dat19$R$mark_strata), table(dat19$M$strata) - tab
 completemix_tab
 DescTools::GTest(completemix_tab)
 
+
 #Estimate
-#Pooled Chapman is OK
+#Pooled Chapman
 M <- sum(!is.na(dat19$M$tag)); M
 C <- max(dat19$weir$cum)[1]; C
 R <- sum(dat19$R$Ytag); R
 N <- (M + 1) * (C + 1) / (R + 1) - 1; N
 N_se <- sqrt((M + 1) * (C + 1) * (M - R) * (C - R) / (R + 1) ^2 / (R + 2)); N_se
+N + N_se * qnorm(c(0.025, 0.975))
+N_se*qnorm(0.975)/N
+
+#Note R and C asl sampled at differet rates
+Ms <- table(dat19$M$sex); Ms
+Cs <- table(dat19$C$sex); Cs
+Rs <- table(dat19$R$sex); Rs
+Ns <- (Ms + 1) * (Cs + 1) / (Rs + 1) - 1; Ns
+sum(Cs/C)
+sum(Rs/R)
+
+post_strat19 <- readRDS(".\\models\\post_strat19.rds")
+post_strat19
+post_strat19$sd$N_all*qnorm(0.975)/post_strat19$q50$N_all
+
+######
+#ASL on spawning grounds
+#no abundacne by time lets check anyway
+#Sex comp, age comp and spawning history do not across time strata
+aslpack::tab_lr(dat19$M[!is.na(dat19$M$sex), ], "sex")
+aslpack::tab_lr(dat19$M[!is.na(dat19$M$age_s), ], "age_s")
+aslpack::tab_lr(dat19$M[!is.na(dat19$M$age_s), ], "spawn")
+dat19$M$age2 = ifelse(!is.na(dat19$M$age_s),
+                      ifelse(dat19$M$spawn %in% 1, paste0(dat19$M$age_s, "-Initial"), paste0(dat19$M$age_s, "-Repeat")),
+                      NA)
+aslpack::tab_lr(dat19$M[!is.na(dat19$M$age2), ], "age2")
+
+#Age/Sex comps by trip
+asl_sg_19 <-
+  lapply(1:2, function(x) {
+    dat19$M[dat19$M$strata %in% x, ] %>%
+      dplyr::select(age = age_s, sex, length, spawn) %>%
+      dplyr::filter(!is.na(sex) & !is.na(age)) %>%
+      dplyr::mutate(age = ifelse(spawn %in% 1, paste0(as.character(age), "-Initial"), paste0(as.character(age), "-Repeat"))) %>%
+      asl(data.frame(total = 10000, se_total = 0)) %>% #mock abundance to negate FPC
+      test(totalname = "drop", output = "asl") %>%
+      dplyr::filter(stat_lab != "drop(SE)")}
+  )
+(sg19_1 <- as.data.frame(asl_sg_19[1]))
+(sg19_2 <- as.data.frame(asl_sg_19[2]))
+
+#asl for spawning event
+#Sex comp similar umongst age and unaged fish
+dat19$M %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = length)) + geom_histogram() + facet_grid(aged~.)
+dat19$M %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = sex)) + geom_histogram(stat = "count") + facet_grid(aged~.)
+
+#Use this one. Note sex comps similar despite smaller sample size
+sg_asl_tab <-
+  dat19$M %>%
+  dplyr::select(age = age_s, sex, length, spawn) %>%
+  dplyr::filter(!is.na(sex) & !is.na(age)) %>%
+  dplyr::mutate(age2 = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat"))) %>%
+  asl(data.frame(total = post_strat19$mean$N_all, se_total = post_strat19$sd$N_all))
+(sg19 <- sg_asl_tab %>% test(totalname = "Spawners", output = "asl"))
+
+# sg_asl_tab <-
+#   dat19$M %>%
+#   dplyr::select(age = age_s, sex, length, spawn) %>%
+#   dplyr::filter(!is.na(sex) & !is.na(age)) %>%
+#   dplyr::mutate(age2 = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat")),
+#                 sex2 = sex) %>%
+#   asl(data.frame(sex2 = c("M", "F"), total = post_strat19$mean$N, se_total = post_strat19$sd$N), groupvars = "sex2") %>%
+#   combine_strata()
+# (sg19 <- sg_asl_tab %>% test(totalname = "Spawners", output = "asl"))
+#
+# #Sex comp for all fish (aged and unaged identical sex comp)
+# sl_tab <-
+#   dat19$M %>%
+#   dplyr::select(age = age_s, sex, length) %>%
+#   dplyr::filter(!is.na(sex)) %>%
+#   asl(data.frame(total = post_strat19$mean$N_all, se_total = post_strat19$sd$N_all))
+# sl_tab %>% test(totalname = "Kelts", output = "sl")
+
 
 
 #Age/sex comps at weir
@@ -119,47 +226,12 @@ age_clean$sex_strata = age_clean$sex
 
 age_clean2 <- age_clean #new dataset which combines age and inital/repeat spawning info in age label
 age_clean2$age <- age_clean2$age2
-asl(age_clean2, weir_sex, c("sex_strata")) %>%
-  combine_strata() %>%
-  test(totalname = "Kelts", output = "asl", overall_se = 0)
+w19 <-
+  asl(age_clean2, weir_sex, c("sex_strata")) %>%
+    combine_strata() %>%
+    test(totalname = "Kelts", output = "asl", overall_se = 0)
 
-
-######
-#ASL on spawning grounds
-#no abundacne byt lets check anyway
-#Sex comp, age comp and spawning history do not across time strata
-aslpack::tab_lr(dat19$M[!is.na(dat19$M$sex), ], "sex")
-aslpack::tab_lr(dat19$M[!is.na(dat19$M$age_s), ], "age_s")
-aslpack::tab_lr(dat19$M[!is.na(dat19$M$age_s), ], "spawn")
-
-#Age/Sex comps by trip
-#Use these. Note sex comps similar despite smaller sample size
-lapply(1:2, function(x) {
-  dat19$M[dat19$M$strata %in% x, ] %>%
-    dplyr::select(age = age_s, sex, length, spawn) %>%
-    dplyr::filter(!is.na(sex) & !is.na(age)) %>%
-    dplyr::mutate(age = ifelse(spawn %in% 1, paste0(as.character(age), "-Initial"), paste0(as.character(age), "-Repeat"))) %>%
-    asl(data.frame(total = 10000, se_total = 0)) %>% #mock abundance to negate FPC
-    test(totalname = "Spawners", output = "asl")}
-)
-
-
-
-
-C_age0 <- dat19$C[!is.na(dat19$C$age_s), ]
-C_age <- ifelse(C_age0$spawn %in% 1, paste0(C_age0$age_s, "-Initial"), paste0(C_age0$age_s, "-Repeat"))
-M_age0 <- dat19$M[!is.na(dat19$M$age_s), ]
-M_age <- ifelse(M_age0$spawn %in% 1, paste0(M_age0$age_s, "-Initial"), paste0(M_age0$age_s, "-Repeat"))
-
-#saltwater age tests: no differences between events
-MC <- data.frame(strata= c(rep("M", length(M_age)), rep("C", length(C_age))),
-                 age_s = c(M_age, C_age))
-aslpack::tab_lr(MC, "age_s", )
-
-#Initial/repeat spawning tests: no differences between events
-MC2 <- data.frame(strata= c(rep("M", length(M_age0$spawn)), rep("C", length(C_age0$spawn))),
-                  spawn = c(M_age0$spawn, C_age0$spawn))
-aslpack::tab_lr(MC2, "spawn", )
+WriteXLS::WriteXLS(c("sg19", "sg19_1", "sg19_2", "w19"), "Tables_19.xls")
 
 
 
@@ -206,7 +278,12 @@ for(i in 1:1000) Ssurv[i,1] <- SsurvL[[i]][1,1]
 for(i in 1:1000) Ssurv[i,2] <- SsurvL[[i]][1,2]
 for(i in 1:1000) Ssurv[i,3] <- SsurvL[[i]][2,1]
 for(i in 1:1000) Ssurv[i,4] <- SsurvL[[i]][2,2]
-apply(Ssurv, 2, quantile, probs = c(0, 0.05, 0.5, 0.95, 1))
+# small sample sizes
+table(stringr::str_count(dat19$R$age, "s"), dat19$R$sex)
+table(stringr::str_count(dat19$M$age, "s"), dat19$M$sex)
+
+# estimates
+apply(Ssurv, 2, quantile, probs = c(0, 0.025, 0.5, 0.975, 1))
 apply(Ssurv, 2, mean)
 apply(Ssurv, 2, sd)
 
@@ -252,9 +329,21 @@ apply(Ssurv, 2, sd)
 
 #OVerall Spawning survival
 #samples sizes too small to break down
-S <- R /M; S
+S <- R / M; S
 seS <- sqrt(S * (1 - S) / (M -1)); seS
 binom::binom.confint(R, M, conf.level = 0.95, method = "wilson")
+
+
+
+C_age0 <- dat19$C[!is.na(dat19$C$age_s), ]
+C_age <- ifelse(C_age0$spawn %in% 1, paste0(C_age0$age_s, "-Initial"), paste0(C_age0$age_s, "-Repeat"))
+M_age0 <- dat19$M[!is.na(dat19$M$age_s), ]
+M_age <- ifelse(M_age0$spawn %in% 1, paste0(M_age0$age_s, "-Initial"), paste0(M_age0$age_s, "-Repeat"))
+#saltwater age tests: no differences between events
+MC <- data.frame(strata= c(rep("M", length(M_age)), rep("C", length(C_age))),
+                 age_s = c(M_age, C_age))
+aslpack::tab_lr(MC, "age_s", )
+
 
 
 #Replicate figure 6 from FDS 97-6

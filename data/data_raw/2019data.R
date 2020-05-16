@@ -71,7 +71,7 @@ R19 <-
                      col_names = c("date", "tag_text", "Ytag", "Ptag", "finclip", "comment"),
                      col_types = c("date", "text", rep("numeric", 2), rep("text", 2)))
 lapply(R19, table, useNA = "ifany")
-R19$tag_text[grepl("109", R19$comment)] <- "yellow 119" #tag number in comments but not in tag field
+R19$tag_text[grepl("109", R19$comment)] <- "yellow 109" #tag number in comments but not in tag field
 dim(R19)
 R19 <- R19[!(R19$tag_text %in% "yellow 128"), ] #"yellow 128" #Mort wash-up not recap
 dim(R19)
@@ -108,6 +108,7 @@ readxl::read_excel(".\\data\\data_raw\\Copy of 2019 Karluk Sampling.xlsx",
                    col_types = c("date", rep("numeric", 2), rep("text", 4), rep("numeric", 2), rep("text", 4))) %>%
   dplyr::mutate(strata = cut(date, Cbreaks, labels = FALSE))
 lapply(C19, table, useNA = "ifany")
+C19$tag <- ifelse(C19$tag == "n", NA, C19$tag)
 C19$sex <- factor(C19$sex, levels = 1:2, labels = c("M", "F"))
 hist(C19$length)
   C19$length[C19$length %in% 69] <- 690 #Per Tyler
@@ -133,6 +134,20 @@ lapply(C19, table, useNA = "ifany")
 C19[is.na(C19$sex), ]
 C19[is.na(C19$length), ]
 C19[is.na(C19$age), ] %>% print(n = 100)
+
+#A few Yellow tags listed in C19 but missing from R19!
+C19[!(C19$tag %in% unique(R19$tag)) & C19$tag_color != "pink",]
+R19
+R19 <-
+  C19[!(C19$tag %in% unique(R19$tag)) & C19$tag_color != "pink",] %>%
+  dplyr::mutate(Ytag = 1,
+                tag = as.numeric(tag)) %>%
+  dplyr::select(date, Ytag, finclip, tag, strata) %>%
+  dplyr::left_join(M19[!is.na(M19$tag), c("mark_date", "tag", "length", "sex", "age", "age_s", "age_t", "age_f", "spawn")], "tag") %>%
+  dplyr::mutate(mark_strata = cut(mark_date, Mbreaks, include.lowest = TRUE, labels = FALSE)) %>%
+  rbind(R19)
+
+
 
 dat19 <- list(M = M19, C = C19, R = R19, weir = weir_daily19)
 save(dat19, file = ".\\data\\dat19.rda")

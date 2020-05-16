@@ -2,18 +2,22 @@ model{
   for(s in 1:2){
     R[s] ~ dhyper(M[s], NM[s], C[s], 1)
     NM[s] <- round(N[s] - M[s])
-    N[s] ~ dunif(0, 25000)
-    R_obs[s] ~ dbinom(pR_samp, R[s])
+    N[s] ~ dunif(C[s], C[s] / .25)
+#	N[s] ~ dnorm(C[s] / S[s], tau)
+	Surv[s] <- R[s] / M[s]
   }
-  C_samp ~ dbinom(pC_samp, C_weir)
-  pC_samp ~ dbeta(1, 1)
-  C_male ~ dbinom(p_male, C_samp)
-  p_male ~ dbeta(1, 1)
+#  S[1] ~ dbeta(10, 21)
+#  S[2] ~ dbeta(39, 63)
+#  tau <- 1/1000000
+   
+  C_male ~ dbinom(pC, C_samp)
+  pC ~ dbeta(1, 1)
+  C[1] = round(C_weir * pC)
+  C[2] = round(C_weir * (1 - pC))
 
-  C[1] = round(C_weir * p_male)
-  C[2] = round(C_weir * (1 - p_male))
+  pR <- R[1] / R_weir
+  R_male ~ dbinom(pR, R_samp)
+  R_weir ~ dnorm(R[1] + R[2], 10)
 
-  muR_weir <- R[1] + R[2]
-  R_weir ~ dnorm(muR_weir, 1)
-  pR_samp ~ dbeta(1, 1)
+  N_all = N[1] + N[2]
 }

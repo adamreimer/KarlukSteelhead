@@ -1,0 +1,17 @@
+model{
+  for(s in 1:2){
+    N[s] <- (M[s] + 1) * (C[s] + 1) / (R[s] + 1) - 1
+	Surv[s] <- R[s] / M[s]
+  }
+  C_male ~ dbinom(p_male, C_samp)
+  p_male ~ dbeta(1, 1)
+  C[1] = round(C_weir * p_male)
+  C[2] = C_weir - C[1]
+
+  p_maleR ~ dunif(4/49, 1) #lower bound is R_male/R_weir
+  R_male ~ dbinom(p_maleR, R_samp)
+  R[1] <- round(R_weir * p_maleR)
+  R[2] <- R_weir - R[1]
+
+  N_all = N[1] + N[2]
+}
