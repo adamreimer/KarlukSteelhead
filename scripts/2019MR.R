@@ -138,7 +138,7 @@ sg_asl_tab <-
   dat19$M %>%
   dplyr::select(age = age_s, sex, length, spawn) %>%
   dplyr::filter(!is.na(sex) & !is.na(age)) %>%
-  dplyr::mutate(age2 = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat"))) %>%
+  dplyr::mutate(age = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat"))) %>%
   asl(data.frame(total = post_strat19$mean$N_all, se_total = post_strat19$sd$N_all))
 (sg19 <- sg_asl_tab %>% test(totalname = "Spawners", output = "asl"))
 
