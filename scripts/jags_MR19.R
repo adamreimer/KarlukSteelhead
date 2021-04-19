@@ -3,8 +3,12 @@ load(".\\data\\dat19.rda")
 
 #Sex stratified abundance estimate
 #model R directly
+M_tab <-  table(dat19$M$sex)
 R_tab <-  table(dat19$R$sex)
+R_tab / sum(R_tab)
+R_tab / M_tab
 C_tab <-  table(dat19$C$sex)
+C_tab / sum(C_tab)
 jags_dat_strat <- list(M = aggregate(tag ~ sex, dat19$M, FUN = function(x) {sum(!is.na(x))})[, 2],
                        C_male = C_tab[1],
                        C_samp = sum(C_tab),
@@ -27,7 +31,7 @@ post_strat <- jagsUI::jags(data = jags_dat_strat,
                            #              list(R = c(25, 24)),
                            #              list(R = c(10, 39)),
                            #              list(R = c(15, 30))),
-                           model.file = ".\\models\\mod_MR19_strat2.txt",
+                           model.file = ".\\models\\mod_MR19_strat.txt",
                            n.chains = nc,
                            n.iter = ns,
                            n.burnin = nb,
@@ -41,10 +45,6 @@ plot(post_strat)
 sum(post_strat$sims.list$R[,1] < R_tab[1])
 #What's troubling is that changing S changes the the posterior on N and .25 is arbitary.
 #Point estimate with a normal prior is 6% higher.
-
-
-
-
 
 
 #Model distribution of R and C using Chapman to get N

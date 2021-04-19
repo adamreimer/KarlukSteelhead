@@ -34,7 +34,7 @@ data.frame(sample = "Recaptured (n=20)",
   rbind(data.frame(sample = "Captured (n=244)",
                    Length = rep(C_lg, times = 2),
                    test = rep(c("Captured vs. Recaptured", "Marked vs. Captured"), each = length(C_lg)))) %>%
-  ggplot(aes(x = Length, color = sample)) +
+  ggplot(aes(x = Length, linetype = sample)) +
     stat_ecdf(geom = "step") +
     facet_grid(test ~ .) +
     geom_label(aes(x = x, y = y, label = text),
@@ -43,6 +43,7 @@ data.frame(sample = "Recaptured (n=20)",
                           x = 425, y = .9),
                inherit.aes = FALSE) +
     ylab("Cumulative Relative frequency") +
+  scale_linetype_manual(values = c(1, 3, 5)) +  #scale_linetype_manual(values = c("Recaptured" = 1, "Marked" = 3, "Captured" = 5)) +
     theme_bw(base_size = 15)
 
 
@@ -94,12 +95,11 @@ N_se*qnorm(0.975)/N
 Ms <- table(dat19$M$sex); Ms
 Cs <- table(dat19$C$sex); Cs
 Rs <- table(dat19$R$sex); Rs
-Ns <- (Ms + 1) * (Cs + 1) / (Rs + 1) - 1; Ns
 sum(Cs/C)
 sum(Rs/R)
 
 post_strat19 <- readRDS(".\\models\\post_strat19.rds")
-post_strat19
+summary(post_strat19)
 post_strat19$sd$N_all*qnorm(0.975)/post_strat19$q50$N_all
 
 ######
