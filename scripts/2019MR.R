@@ -99,7 +99,7 @@ sum(Cs/C)
 sum(Rs/R)
 
 post_strat19 <- readRDS(".\\models\\post_strat19.rds")
-summary(post_strat19)
+post_strat19$sd
 post_strat19$sd$N_all*qnorm(0.975)/post_strat19$q50$N_all
 
 ######
@@ -133,24 +133,24 @@ asl_sg_19 <-
 dat19$M %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = length)) + geom_histogram() + facet_grid(aged~.)
 dat19$M %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = sex)) + geom_histogram(stat = "count") + facet_grid(aged~.)
 
-#Use this one. Note sex comps similar despite smaller sample size
-sg_asl_tab <-
-  dat19$M %>%
-  dplyr::select(age = age_s, sex, length, spawn) %>%
-  dplyr::filter(!is.na(sex) & !is.na(age)) %>%
-  dplyr::mutate(age = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat"))) %>%
-  asl(data.frame(total = post_strat19$mean$N_all, se_total = post_strat19$sd$N_all))
-(sg19 <- sg_asl_tab %>% test(totalname = "Spawners", output = "asl"))
-
+#Pooled spawning asl. Should not use.
 # sg_asl_tab <-
 #   dat19$M %>%
 #   dplyr::select(age = age_s, sex, length, spawn) %>%
 #   dplyr::filter(!is.na(sex) & !is.na(age)) %>%
-#   dplyr::mutate(age2 = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat")),
-#                 sex2 = sex) %>%
-#   asl(data.frame(sex2 = c("M", "F"), total = post_strat19$mean$N, se_total = post_strat19$sd$N), groupvars = "sex2") %>%
-#   combine_strata()
+#   dplyr::mutate(age = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat"))) %>%
+#   asl(data.frame(total = post_strat19$mean$N_all, se_total = post_strat19$sd$N_all))
 # (sg19 <- sg_asl_tab %>% test(totalname = "Spawners", output = "asl"))
+
+sg_asl_tab <-
+  dat19$M %>%
+  dplyr::select(age = age_s, sex, length, spawn) %>%
+  dplyr::filter(!is.na(sex) & !is.na(age)) %>%
+  dplyr::mutate(age2 = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat")),
+                sex2 = sex) %>%
+  asl(data.frame(sex2 = c("M", "F"), total = post_strat19$mean$N, se_total = post_strat19$sd$N), groupvars = "sex2") %>%
+  combine_strata2()
+(sg19 <- sg_asl_tab %>% test(totalname = "Spawners", output = "asl", overall_se = 584))
 #
 # #Sex comp for all fish (aged and unaged identical sex comp)
 # sl_tab <-
@@ -211,14 +211,14 @@ sl_tab %>% test(totalname = "Kelts", output = "sl")
 
 weir_sex <- #Emmigration by sex
   sl_tab[sl_tab$age %in% "All", ] %>%
-  dplyr::select(sex_strata = sex, total = t.z, se_total = sd_t.z)
+  dplyr::select(sex2 = sex, total = t.z, se_total = sd_t.z)
 
 age_clean <- #clean data with sex as a stratification varible
   dat19$C %>%
   dplyr::select(age = age_s, sex, length, spawn) %>%
   dplyr::filter(!is.na(age) & !is.na(sex)) %>%
   dplyr::mutate(age2 = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat")))
-age_clean$sex_strata = age_clean$sex
+age_clean$sex2 = age_clean$sex
 
 # asl(age_clean, weir_sex, c("sex_strata")) %>%
 #   combine_strata() %>%
@@ -227,8 +227,8 @@ age_clean$sex_strata = age_clean$sex
 age_clean2 <- age_clean #new dataset which combines age and inital/repeat spawning info in age label
 age_clean2$age <- age_clean2$age2
 w19 <-
-  asl(age_clean2, weir_sex, c("sex_strata")) %>%
-    combine_strata() %>%
+  asl(age_clean2, weir_sex, c("sex2")) %>%
+    combine_strata2() %>%
     test(totalname = "Kelts", output = "asl", overall_se = 0)
 
 WriteXLS::WriteXLS(c("sg19", "sg19_1", "sg19_2", "w19"), "Tables_19.xls")

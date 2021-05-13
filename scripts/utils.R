@@ -91,3 +91,53 @@ test_ks <- function(lg1, lg2, title){
        labels = paste0("D = ", format(test$statistic[[1]], digits = 2), "\n p.val = ", format.pval(test$p.value, digits = 2, eps = 0.001, nsmall = 3)),
        adj = 0)
 }
+
+#combined proportion variance from ADF&G age comp appendix.
+combine_strata2 <- function(dat){
+  weight <-
+    dat %>%
+    dplyr::select(age, sex, t.z, lg.z) %>%
+    dplyr::group_by(age, sex) %>%
+    dplyr::summarize(sum_t.z = sum(t.z),
+                     var = sum(lg.z * t.z))
+
+  weight2 <-
+    dat %>%
+    dplyr::left_join(setNames(dat[dat$sex == "Both" & dat$age == "All", c("sex2", "t.z")], c("sex2", "total.sex")),
+                     by = "sex2") %>%
+    dplyr::mutate(total = sum(dat[dat$sex == "Both" & dat$age == "All", "t.z"])) %>%
+    dplyr::select(age, sex, p.z, total.sex, total) %>%
+    dplyr::mutate(p.k = total.sex/total*p.z) %>%
+    dplyr::group_by(age, sex) %>%
+    dplyr::summarize(p.k = sum(p.k))
+
+  dplyr::left_join(dat, weight, by = c("age", "sex")) %>%
+    dplyr::left_join(weight2, by = c("age", "sex")) %>%
+    dplyr::left_join(setNames(dat[dat$sex == "Both" & dat$age == "All", c("sex2", "t.z", "sd_t.z")], c("sex2", "total.sex", "se_total.sex")),
+                     by = "sex2") %>%
+    dplyr::mutate(w_lg.z = lg.z * t.z/sum_t.z,
+                  w_se_lg.z = se_lg.z^2 * (t.z/sum_t.z)^2 + (lg.z * sum_t.z - var)^2 / sum_t.z^4 * sd_t.z^2,
+                  var_p.k = total.sex^2 * sd_p.z^2 / total.sex^2 + (p.z -p.k)^2 * se_total.sex^2 / total.sex^2) %>%
+    dplyr::group_by(age, sex) %>%
+    dplyr::summarise(n.z = sum(n.z),
+                     t.z = sum(t.z),
+                     lg.z = sum(w_lg.z),
+                     sd_t.z = sqrt(sum(sd_t.z^2)),
+                     se_lg.z = sqrt(sum(w_se_lg.z, na.rm = TRUE)),
+                     min_lg.z = min(min_lg.z),
+                     max_lg.z = max(max_lg.z),
+                     p.k = mean(p.k),
+                     var_p.k = sum(var_p.k)) %>%
+    dplyr::mutate(total = weight[[which(weight$age == "All" & weight$sex == "Both"), "sum_t.z"]],
+                  p.z = t.z/total,
+                  var_p.z = sd_t.z^2 * total^-2,
+                  #sd_p.z = sqrt(var_p.z),
+                  sd_p.z = sqrt(var_p.k),
+                  logitlci_p.z = log(p.z / (1-p.z)) - 1.96 * sqrt(1 / p.z^2 / (1-p.z)^2 * sd_p.z^2),
+                  logituci_p.z = log(p.z / (1-p.z)) + 1.96 * sqrt(1 / p.z^2 / (1-p.z)^2 * sd_p.z^2),
+                  lci_p.z = exp(logitlci_p.z)/(1 + exp(logitlci_p.z)),
+                  uci_p.z = exp(logituci_p.z)/(1 + exp(logituci_p.z)))%>%
+    dplyr::select(age, sex, n.z, p.z, sd_p.z, lci_p.z, uci_p.z, t.z, sd_t.z, lg.z, se_lg.z, min_lg.z, max_lg.z) %>%
+    dplyr::ungroup()
+}
+
