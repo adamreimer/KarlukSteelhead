@@ -39,7 +39,10 @@ asl_sg_17 <-
 sg17_1 <- as.data.frame(asl_sg_17[1]);
 sg17_2 <- as.data.frame(asl_sg_17[2]);
 
-
+dat17$M %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = sex)) + geom_histogram(stat = "count") + facet_grid(aged~.)
+table(dat17$M$sex[is.na(dat17$M$age)])
+table(dat17$M$sex[!is.na(dat17$M$age)])
+chisq.test(matrix(c(10, 44, 5, 16), nrow = 2))
 
 
 #Age/sex comps at weir
@@ -89,6 +92,11 @@ aslpack::tab_lr(dat17$C[!is.na(dat17$C$age_s), ], "spawn")
 #length and sex comp of aged and unaged fish
 dat17$C %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = length)) + geom_histogram() + facet_grid(aged~.)
 dat17$C %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = sex)) + geom_histogram(stat = "count") + facet_grid(aged~.)
+table(dat17$C$sex, useNA = "ifany")
+table(dat17$C$sex[is.na(dat17$C$age)])
+table(dat17$C$sex[!is.na(dat17$C$age)])
+DescTools::GTest(matrix(c(25, 217, 40, 128), nrow = 2))
+
 
 #Sex comp first in include unaged fish
 sl_tab <-
@@ -101,7 +109,7 @@ sl_tab %>% test(totalname = "Kelts", output = "sl")
 
 weir_sex <- #Emmigration by sex
   sl_tab[sl_tab$age %in% "All", ] %>%
-  dplyr::select(sex_strata = sex, total = t.z, se_total = sd_t.z)
+  dplyr::select(sex2 = sex, total = t.z, se_total = sd_t.z)
 
 age_clean <- #clean data with sex as a stratification varible
   dat17$C %>%
@@ -109,7 +117,7 @@ age_clean <- #clean data with sex as a stratification varible
   dplyr::filter(!is.na(age) & !is.na(sex)) %>%
   dplyr::mutate(age = as.character(age),
                 age2 = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat")))
-age_clean$sex_strata = age_clean$sex
+age_clean$sex2 = age_clean$sex
 
 #wier age comp by saltwater age
 # asl(age_clean, weir_sex, c("sex_strata")) %>%
@@ -120,10 +128,11 @@ age_clean$sex_strata = age_clean$sex
 age_clean2 <- age_clean #new dataset which combines age and inital/repeat spawning info in age label
 age_clean2$age <- age_clean2$age2
 w17 <-
-  asl(age_clean2, weir_sex, c("sex_strata")) %>%
-    combine_strata() %>%
+  asl(age_clean2, weir_sex, c("sex2")) %>%
+    combine_strata2() %>%
     test(totalname = "Kelts", output = "asl", overall_se = 0)
 
+w17 <- w17[!(w17$stat_lab == "95% CI(Proportion)"), ]
 WriteXLS::WriteXLS(c("sg17_1", "sg17_2", "w17"), "Tables_17.xls")
 
 

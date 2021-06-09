@@ -47,15 +47,29 @@ sum(post_strat$sims.list$R[,1] < R_tab[1])
 #Point estimate with a normal prior is 6% higher.
 
 
+###########################
 #Model distribution of R and C using Chapman to get N
+
+#add asl data to get accurate CI
+jags_dat_strat2 <- list(M = aggregate(tag ~ sex, dat19$M, FUN = function(x) {sum(!is.na(x))})[, 2],
+                       C_male = C_tab[1],
+                       C_samp = sum(C_tab),
+                       C_weir = max(dat19$weir$cum)[1],
+                       R_male = R_tab[1],
+                       R_samp = sum(R_tab),
+                       R_weir = 49,
+                       age = matrix(c(10, 15, 2, 0, 5, 68, 15, 2), nrow = 2, ncol = 4, byrow = TRUE),
+                       age_sum = c(90, 27)
+)
+
 #paramaters of interest
-params_strat <- c("N", "C", "R", "N_all", "Surv")
+params_strat2 <- c("N", "C", "R", "N_all", "Surv", "N_a", "N_am", "N_af", "theta_f", "theta_m", "theta_all")
 
 #MCMC settings
 nc <- 5; nb <- 500; nt <- 1; ns <- 1000;
 
-post_strat2 <- jagsUI::jags(data = jags_dat_strat,
-                           parameters.to.save = params_strat,
+post_strat2 <- jagsUI::jags(data = jags_dat_strat2,
+                           parameters.to.save = params_strat2,
                            model.file = ".\\models\\mod_MR19_strat2.txt",
                            n.chains = nc,
                            n.iter = ns,
@@ -64,15 +78,18 @@ post_strat2 <- jagsUI::jags(data = jags_dat_strat,
                            store.data = TRUE)
 post_strat2
 plot(post_strat2)
-post_strat19 <- post_strat2
-saveRDS(post_strat19, ".\\models\\post_strat19.rds")
+post_strat19asl <- post_strat2
+saveRDS(post_strat19asl, ".\\models\\post_strat19_asl.rds")
 #This model is less satisfying but we dont have to defne the prior
 
 
 
 
 
+
+#############################
 #Note: pooled model estimates slightly higher N than Chapman
+
 jags_dat_pooled <- list(M = sum(!is.na(dat19$M$tag)),
                         R = sum(dat19$R$Ytag),
                         C = max(dat19$weir$cum)[1]

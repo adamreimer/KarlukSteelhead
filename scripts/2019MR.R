@@ -160,6 +160,10 @@ sg_asl_tab <-
 #   asl(data.frame(total = post_strat19$mean$N_all, se_total = post_strat19$sd$N_all))
 # sl_tab %>% test(totalname = "Kelts", output = "sl")
 
+dat19$M %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = sex)) + geom_histogram(stat = "count") + facet_grid(aged~.)
+table(dat19$M$sex[is.na(dat19$M$age)])
+table(dat19$M$sex[!is.na(dat19$M$age)])
+chisq.test(matrix(c(4, 13, 27, 90), nrow = 2))
 
 
 #Age/sex comps at weir
@@ -200,6 +204,10 @@ aslpack::tab_lr(dat19$C[!is.na(dat19$C$age_s), ], "spawn")
 
 dat19$C %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = length)) + geom_histogram() + facet_grid(aged~.)
 dat19$C %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = sex)) + geom_histogram(stat = "count") + facet_grid(aged~.)
+table(dat19$C$sex, useNA = "ifany")
+table(dat19$C$sex[is.na(dat19$C$age)])
+table(dat19$C$sex[!is.na(dat19$C$age)])
+DescTools::GTest(matrix(c(27, 53, 25, 132), nrow = 2))
 
 #Sex comp first since unaged fish skew sex comp
 sl_tab <-
@@ -231,7 +239,10 @@ w19 <-
     combine_strata2() %>%
     test(totalname = "Kelts", output = "asl", overall_se = 0)
 
+sg19 <- sg19[!(sg19$stat_lab %in% c("Sample size", "95% CI(Proportion)")), ]
+w19 <- w19[!(w19$stat_lab == "95% CI(Proportion)"), ]
 WriteXLS::WriteXLS(c("sg19", "sg19_1", "sg19_2", "w19"), "Tables_19.xls")
+
 
 
 
