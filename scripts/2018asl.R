@@ -36,8 +36,10 @@ sg18 <-
     test(totalname = "drop", output = "asl") %>%
     dplyr::filter(stat_lab != "drop(SE)")
 
-WriteXLS::WriteXLS(c("sg18"), "Tables_18.xls")
-
+dat18$M %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = sex)) + geom_histogram(stat = "count") + facet_grid(aged~.)
+table(dat18$M$sex[is.na(dat18$M$age)])
+table(dat18$M$sex[!is.na(dat18$M$age)])
+chisq.test(matrix(c(13, 80, 13, 34), nrow = 2))
 
 
 ######Age/sex comps at weir
@@ -73,60 +75,36 @@ dplyr::left_join(plot_w, plot_age, by = "date") %>%
                 date = as.POSIXct(date)) %>%
   aslpack::plot_ks("emmigration")
 
-#Sex comp, age comp and spawning history do not across time strata
+#Sex comp, age comp and spawning history do not differ across time strata
 aslpack::tab_lr(dat18$C[!is.na(dat18$C$sex), ], "sex")
 aslpack::tab_lr(dat18$C[!is.na(dat18$C$age_s), ], "age_s")
 aslpack::tab_lr(dat18$C[!is.na(dat18$C$age_s), ], "spawn")
 
+#Unaged fish and aged fish have similar sex comp
 dat18$C %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = length)) + geom_histogram() + facet_grid(aged~.)
 dat18$C %>% dplyr::mutate(aged = ifelse(!is.na(length) & is.na(age_s), FALSE, TRUE)) %>% ggplot(aes(x = sex)) + geom_histogram(stat = "count") + facet_grid(aged~.)
-
-#Sex comp first in include unaged fish
-sl_tab <-
-  dat18$C %>%
-  dplyr::select(age = age_s, sex, length, strata) %>%
-  dplyr::filter(!is.na(sex)) %>%
-  dplyr::mutate(age = as.character(age)) %>%
-  asl(data.frame(strata = 1:4,
-                 total = aggregate(dat18$weir$daily, by = list(dat18$weir$strata), sum)[[2]],
-                 se_total = 0),
-      groupvars = "strata")
-weir18_strata <-
-  lapply(1:4, function(x) {test(dat = sl_tab[sl_tab$strata == x, ], totalname = "Kelts", output = "sl")}) %>%
-  do.call(rbind, .)
-weir18_strata$strata <- rep(c("May 21-June 1", "June 2-7", "June 8-14", "June 15-Sept 9"), each = 6)
+table(dat18$C$sex, useNA = "ifany")
+table(dat18$C$sex[is.na(dat18$C$age)])
+table(dat18$C$sex[!is.na(dat18$C$age)])
+DescTools::GTest(matrix(c(10, 99, 9, 55), nrow = 2))
 
 
-temp <- sl_tab[sl_tab$age %in% "All" & sl_tab$sex %in% c("M", "F"), c("sex", "t.z", "sd_t.z")]
-weir_sex <-
-  data.frame(
-    sex_strata = c("F", "M"),
-    total = aggregate(temp$t.z, list(temp$sex), sum)[[2]],
-    se_total =  aggregate(temp$sd_t.z, list(temp$sex), function(x) {sqrt(sum(x^2))})[[2]]
-)
-
+#No differences, simple ASL
 age_clean <- #clean data with sex as a stratification varible
   dat18$C %>%
   dplyr::select(age = age_s, sex, length, spawn) %>%
   dplyr::filter(!is.na(age) & !is.na(sex)) %>%
   dplyr::mutate(age = as.character(age),
                 age2 = ifelse(spawn %in% 1, paste0(age, "-Initial"), paste0(age, "-Repeat")))
-age_clean$sex_strata = age_clean$sex
-
-#weir age comp by saltwater age
-# asl(age_clean, weir_sex, c("sex_strata")) %>%
-#   combine_strata() %>%
-#   test(totalname = "Kelts", output = "asl", overall_se = 0)
-
-#weir age comp by saltwater age and spawning history
 age_clean2 <- age_clean #new dataset which combines age and inital/repeat spawning info in age label
 age_clean2$age <- age_clean2$age2
-weir18 <-
-  asl(age_clean2, weir_sex, c("sex_strata")) %>%
-    combine_strata() %>%
-    test(totalname = "Kelts", output = "asl", overall_se = 0)
 
-WriteXLS::WriteXLS(c("sg18", "weir18", "weir18_strata"), "Tables_18.xls")
+#weir age comp by saltwater age and spawning history
+weir18 <-
+  asl(age_clean2, data.frame(total = sum(dat18$weir$daily), se_total = 0)) %>%
+  test(totalname = "Kelts", output = "asl")
+
+WriteXLS::WriteXLS(c("sg18", "weir18"), "Tables_18.xls")
 
 
 

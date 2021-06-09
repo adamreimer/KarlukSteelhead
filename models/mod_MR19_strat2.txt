@@ -14,4 +14,16 @@ model{
   R[2] <- R_weir - R[1]
 
   N_all = N[1] + N[2]
+  
+  age[1,] ~ dmulti(theta1, age_sum[1])
+  age[2,] ~ dmulti(theta2, age_sum[2])
+  theta1 ~ ddirch(c(0.1, 0.1, 0.1, 0.1))
+  theta2 ~ ddirch(c(0.1, 0.1, 0.1, 0.1))
+  
+  N_am <- N[1] * theta1
+  N_af <- N[2] * theta2
+  N_a <- N_am + N_af
+  theta_m <- N_am / N_all
+  theta_f <- N_af / N_all
+  theta_all <- (N_af + N_am) / N_all
 }
